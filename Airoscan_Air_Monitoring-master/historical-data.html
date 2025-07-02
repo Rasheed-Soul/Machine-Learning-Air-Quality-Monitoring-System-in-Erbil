@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Historical Data - Airoscan</title>
+<meta name="description" content="View historical air quality data from Airoscan monitoring stations in Erbil, Kurdistan. Simple and easy air quality history viewer.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+// Apply theme immediately
+(function() {
+    const storedTheme = localStorage.getItem('darkMode');
+    let isDarkMode = false;
+    
+    if (storedTheme === 'enabled') {
+        isDarkMode = true;
+    } else if (storedTheme === 'disabled') {
+        isDarkMode = false;
+    } else {
+        isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    
+    if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+    }
+
+    const lang = localStorage.getItem('language') || 'en';
+    document.documentElement.lang = lang;
+    document.documentElement.dir = (lang === 'ar' || lang === 'ku') ? 'rtl' : 'ltr';
+})();
+</script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --orange-primary: #FF7A00;
+    --orange-secondary: #FFB766;
+    --blue-primary: #3B82F6;
+    --blue-secondary: #60A5FA;
+}
+
+body {
+    font-family: 'Manrope', sans-serif;
+    background-color: #F9FAFB;
+    color: #1F2937;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+[lang="ar"], [lang="ku"] {
+    font-family: 'Noto Sans Arabic', 'Manrope', sans-serif;
+}
+
+.dark body {
+    background-color: #0D1117;
+    color: #C9D1D9;
+}
+
+.gradient-text {
+    background: linear-gradient(90deg, var(--orange-primary) 0%, var(--orange-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.glass-effect {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.85);
+    border-bottom: 1px solid rgba(230, 230, 230, 0.7);
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.dark .glass-effect {
+    background: rgba(22, 27, 34, 0.85);
+    border-bottom: 1px solid #30363D;
+}
+
+.neo-card {
+    background: #FFFFFF;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.02);
+    border-radius: 16px;
+    border: none;
+    position: relative;
+    overflow: hidden;
+    transform: translateY(0);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s;
+    margin-bottom: 15px;
+}
+
+.dark .neo-card {
+    background: #1E293B;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.neo-card:hover {
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08), 0 0 60px rgba(255, 122, 0, 0.08);
+    transform: translateY(-8px);
+}
+
+.dark .neo-card:hover {
+    box-shadow: 0 10px 15px rgba(0,0,0,0.2), 0 4px 6px rgba(0,0,0,0.15);
+    transform: translateY(-8px);
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.status-badge.good-status { background-color: #D1FAE5; color: #065F46; }
+.status-badge.moderate-status { background-color: #FEF3C7; color: #92400E; }
+.status-badge.unhealthy-sensitive-status { background-color: #FFEDD5; color: #9A3412; }
+.status-badge.unhealthy-status { background-color: #FEE2E2; color: #991B1B; }
+.status-badge.very-unhealthy-status { background-color: #F3E8FF; color: #6B21A8; }
+.status-badge.hazardous-status { background-color: #FEE2E2; color: #7F1D1D; }
+.status-badge.nodata-status { background-color: #F3F4F6; color: #4B5563; }
+
+.dark .status-badge.good-status { background-color: #052e16; color: #6ee7b7; }
+.dark .status-badge.moderate-status { background-color: #422006; color: #fcd34d; }
+.dark .status-badge.unhealthy-sensitive-status { background-color: #431407; color: #fb923c; }
+.dark .status-badge.unhealthy-status { background-color: #450a0a; color: #f87171; }
+.dark .status-badge.very-unhealthy-status { background-color: #3b0764; color: #c084fc; }
+.dark .status-badge.hazardous-status { background-color: #450a0a; color: #fda4af; }
+.dark .status-badge.nodata-status { background-color: #374151; color: #D1D5DB; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #F3F4F6; border-radius: 4px; }
+.dark .custom-scrollbar::-webkit-scrollbar-track { background: #374151; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--orange-primary); border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--orange-secondary); }
+
+.lang-btn {
+    background-color: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s;
+}
+
+.dark .lang-btn {
+    background-color: #374151;
+    color: #9ca3af;
+    border: 1px solid #4b5563;
+}
+
+.lang-btn:hover {
+    background-color: #e5e7eb;
+}
+
+.dark .lang-btn:hover {
+    background-color: #4b5563;
+}
+
+.lang-btn.active {
+    background-color: var(--orange-primary);
+    color: white;
+    border-color: var(--orange-primary);
+}
+
+/* Big, friendly buttons */
+.big-button {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    min-height: 3.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.big-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.big-button.active {
+    background-color: var(--orange-primary) !important;
+    color: white !important;
+    border-color: var(--orange-primary) !important;
+}
+
+/* Simple date cards */
+.date-card {
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+
+.date-card:hover {
+    border-color: var(--orange-primary);
+    transform: translateY(-4px);
+}
+
+.date-card.selected {
+    border-color: var(--orange-primary);
+    background: linear-gradient(135deg, rgba(255, 122, 0, 0.1), rgba(255, 183, 102, 0.05));
+}
+
+/* Loading animation */
+.loading-spinner {
+    border: 3px solid #E5E7EB;
+    border-top: 3px solid var(--orange-primary);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+}
+
+.dark .loading-spinner {
+    border-color: #374151;
+    border-top-color: var(--orange-primary);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Simple data display */
+.data-item {
+    padding: 1rem;
+    border-radius: 12px;
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    transition: all 0.3s;
+}
+
+.dark .data-item {
+    background: #374151;
+    border-color: #4B5563;
+}
+
+.data-item:hover {
+    background: #F3F4F6;
+    border-color: var(--orange-primary);
+}
+
+.dark .data-item:hover {
+    background: #4B5563;
+}
+
+/* Calendar styling */
+.calendar-input {
+    padding: 1rem;
+    font-size: 1.1rem;
+    border-radius: 12px;
+    border: 2px solid #E5E7EB;
+    background: white;
+    color: #1F2937;
+    transition: all 0.3s;
+}
+
+.dark .calendar-input {
+    background: #374151;
+    border-color: #4B5563;
+    color: #F3F4F6;
+}
+
+.calendar-input:focus {
+    outline: none;
+    border-color: var(--orange-primary);
+    box-shadow: 0 0 0 3px rgba(255, 122, 0, 0.1);
+}
+
+/* RTL support */
+[dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0.75rem;
+    margin-left: 0;
+}
+
+[dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0.5rem;
+    margin-left: 0;
+}
+
+[dir="rtl"] .mr-2 {
+    margin-right: 0;
+    margin-left: 0.5rem;
+}
+
+/* Better responsive design */
+@media (max-width: 768px) {
+    .big-button {
+        padding: 0.875rem 1.5rem;
+        font-size: 1rem;
+        min-height: 3rem;
+    }
+}
+</style>
+
+<script>
+tailwind.config = {
+    darkMode: 'class',
+    theme: {
+        extend: {
+            colors: {
+                orange: { primary: '#FF7A00', secondary: '#FFB766' },
+                blue: { primary: '#3B82F6', secondary: '#60A5FA' }
+            }
+        }
+    }
+}
+</script>
+</head>
+
+<body class="min-h-screen custom-scrollbar">
+<div id="error-message"></div>
+
+<header class="sticky top-0 z-40 glass-effect shadow-sm">
+<div class="container mx-auto px-4 py-3 flex justify-between items-center">
+    <div class="flex items-center space-x-3">
+        <a href="index.html" class="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span class="font-medium" data-i18n="backToDashboard">Back to Dashboard</span>
+        </a>
+        <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+        <div>
+            <h1 class="text-xl font-bold gradient-text" data-i18n="appName">Airoscan</h1>
+            <p class="text-xs text-gray-500 -mt-1" data-i18n="university">Tishk International University</p>
+        </div>
+    </div>
+    <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2">
+            <button onclick="setLanguage('en')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="en">EN</button>
+            <button onclick="setLanguage('ku')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="ku">کو</button>
+            <button onclick="setLanguage('ar')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="ar">ع</button>
+        </div>
+        <button id="dark-mode-toggle" class="p-2 rounded-lg bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors duration-200 shadow-sm border border-gray-100 dark:border-gray-700">
+            <svg id="theme-toggle-dark-icon" class="hidden h-5 w-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+            <svg id="theme-toggle-light-icon" class="hidden h-5 w-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 5.05A1 1 0 003.636 3.636l-.707.707a1 1 0 101.414 1.414l.707-.707zM3 11a1 1 0 100-2H2a1 1 0 100 2h1zM13 17a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM4.95 14.95A1 1 0 006.364 16.364l.707-.707a1 1 0 00-1.414-1.414l-.707.707z"></path></svg>
+        </button>
+    </div>
+</div>
+</header>
+
+<main class="container mx-auto px-4 py-8">
+<div class="text-center mb-12">
+    <h1 class="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+        <span data-i18n="historicalDataTitle">Air Quality History</span>
+    </h1>
+    <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto" data-i18n="historicalDataSubtitle">
+        See how the air quality was on any day. Simple and easy to understand.
+    </p>
+</div>
+
+<section class="mb-8">
+    <div class="neo-card p-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-full mb-4">
+                <span class="text-2xl font-bold text-orange-600 dark:text-orange-400">1</span>
+            </div>
+            <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-2" data-i18n="chooseLocation">Choose Location</h2>
+            <p class="text-gray-600 dark:text-gray-400" data-i18n="selectWhichSensor">Which air quality sensor do you want to see?</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <button onclick="selectLocation('all')" class="location-btn big-button bg-blue-500 text-white hover:bg-blue-600" data-location="all">
+                <div class="text-center">
+                    <div class="text-2xl mb-2">🌍</div>
+                    <div data-i18n="bothLocations">Both Locations</div>
+                </div>
+            </button>
+            
+            <button onclick="selectLocation('makhmor-road')" class="location-btn big-button bg-orange-500 text-white hover:bg-orange-600" data-location="makhmor-road">
+                <div class="text-center">
+                    <div class="text-2xl mb-2">🛣️</div>
+                    <div data-i18n="makhmor">Makhmor Road</div>
+                </div>
+            </button>
+            
+            <button onclick="selectLocation('naznaz-area')" class="location-btn big-button bg-green-500 text-white hover:bg-green-600" data-location="naznaz-area">
+                <div class="text-center">
+                    <div class="text-2xl mb-2">🏘️</div>
+                    <div data-i18n="naznaz">Naznaz Area</div>
+                </div>
+            </button>
+        </div>
+    </div>
+</section>
+
+<section class="mb-8" id="timeSection" style="display: none;">
+    <div class="neo-card p-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-full mb-4">
+                <span class="text-2xl font-bold text-orange-600 dark:text-orange-400">2</span>
+            </div>
+            <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-2" data-i18n="chooseTime">Choose Time Period</h2>
+            <p class="text-gray-600 dark:text-gray-400" data-i18n="selectTimePeriod">When do you want to see the air quality data?</p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
+            <button onclick="selectQuickTime('today')" class="time-btn big-button bg-purple-500 text-white hover:bg-purple-600" data-time="today">
+                <div class="text-center">
+                    <div class="text-xl mb-1">📅</div>
+                    <div data-i18n="today">Today</div>
+                </div>
+            </button>
+            
+            <button onclick="selectQuickTime('yesterday')" class="time-btn big-button bg-indigo-500 text-white hover:bg-indigo-600" data-time="yesterday">
+                <div class="text-center">
+                    <div class="text-xl mb-1">⏮️</div>
+                    <div data-i18n="yesterday">Yesterday</div>
+                </div>
+            </button>
+            
+            <button onclick="selectQuickTime('week')" class="time-btn big-button bg-cyan-500 text-white hover:bg-cyan-600" data-time="week">
+                <div class="text-center">
+                    <div class="text-xl mb-1">📊</div>
+                    <div data-i18n="lastWeek">Last Week</div>
+                </div>
+            </button>
+            
+            <button onclick="selectQuickTime('month')" class="time-btn big-button bg-emerald-500 text-white hover:bg-emerald-600" data-time="month">
+                <div class="text-center">
+                    <div class="text-xl mb-1">📈</div>
+                    <div data-i18n="lastMonth">Last Month</div>
+                </div>
+            </button>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-8">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 text-center mb-6" data-i18n="orChooseCustom">Or choose a specific date:</h3>
+            
+            <div class="flex justify-center mb-6">
+                <div class="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                    <button onclick="switchDateMode('single')" id="singleDateTab" class="date-mode-btn px-4 py-2 rounded-md text-sm font-medium transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm">
+                        <span data-i18n="singleDate">Single Date</span>
+                    </button>
+                    <button onclick="switchDateMode('range')" id="rangeDateTab" class="date-mode-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
+                        <span data-i18n="dateRange">Date Range</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="singleDateSection" class="max-w-md mx-auto">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3" data-i18n="selectDate">Select Date:</label>
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="day">Day</label>
+                        <select id="daySelect" class="calendar-input w-full text-center" onchange="updateCustomDate()">
+                            </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="month">Month</label>
+                        <select id="monthSelect" class="calendar-input w-full text-center" onchange="updateCustomDate()">
+                            <option value="0" data-i18n="january">January</option>
+                            <option value="1" data-i18n="february">February</option>
+                            <option value="2" data-i18n="march">March</option>
+                            <option value="3" data-i18n="april">April</option>
+                            <option value="4" data-i18n="may">May</option>
+                            <option value="5" data-i18n="june">June</option>
+                            <option value="6" data-i18n="july">July</option>
+                            <option value="7" data-i18n="august">August</option>
+                            <option value="8" data-i18n="september">September</option>
+                            <option value="9" data-i18n="october">October</option>
+                            <option value="10" data-i18n="november">November</option>
+                            <option value="11" data-i18n="december">December</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="year">Year</label>
+                        <select id="yearSelect" class="calendar-input w-full text-center" onchange="updateCustomDate()">
+                            </select>
+                    </div>
+                </div>
+                <button onclick="selectCustomDate()" class="w-full big-button bg-blue-500 text-white hover:bg-blue-600">
+                    <span data-i18n="viewThisDate">View This Date</span>
+                </button>
+            </div>
+
+            <div id="rangeDateSection" class="max-w-2xl mx-auto" style="display: none;">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3" data-i18n="startDate">Start Date:</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="day">Day</label>
+                                <select id="startDaySelect" class="calendar-input w-full text-center" onchange="updateDateRange()">
+                                    </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="month">Month</label>
+                                <select id="startMonthSelect" class="calendar-input w-full text-center" onchange="updateDateRange()">
+                                    <option value="0" data-i18n="january">January</option>
+                                    <option value="1" data-i18n="february">February</option>
+                                    <option value="2" data-i18n="march">March</option>
+                                    <option value="3" data-i18n="april">April</option>
+                                    <option value="4" data-i18n="may">May</option>
+                                    <option value="5" data-i18n="june">June</option>
+                                    <option value="6" data-i18n="july">July</option>
+                                    <option value="7" data-i18n="august">August</option>
+                                    <option value="8" data-i18n="september">September</option>
+                                    <option value="9" data-i18n="october">October</option>
+                                    <option value="10" data-i18n="november">November</option>
+                                    <option value="11" data-i18n="december">December</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="year">Year</label>
+                                <select id="startYearSelect" class="calendar-input w-full text-center" onchange="updateDateRange()">
+                                    </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3" data-i18n="endDate">End Date:</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="day">Day</label>
+                                <select id="endDaySelect" class="calendar-input w-full text-center" onchange="updateDateRange()">
+                                    </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="month">Month</label>
+                                <select id="endMonthSelect" class="calendar-input w-full text-center" onchange="updateDateRange()">
+                                    <option value="0" data-i18n="january">January</option>
+                                    <option value="1" data-i18n="february">February</option>
+                                    <option value="2" data-i18n="march">March</option>
+                                    <option value="3" data-i18n="april">April</option>
+                                    <option value="4" data-i18n="may">May</option>
+                                    <option value="5" data-i18n="june">June</option>
+                                    <option value="6" data-i18n="july">July</option>
+                                    <option value="7" data-i18n="august">August</option>
+                                    <option value="8" data-i18n="september">September</option>
+                                    <option value="9" data-i18n="october">October</option>
+                                    <option value="10" data-i18n="november">November</option>
+                                    <option value="11" data-i18n="december">December</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="year">Year</label>
+                                <select id="endYearSelect" class="calendar-input w-full text-center" onchange="updateDateRange()">
+                                    </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-6">
+                    <button onclick="selectDateRange()" class="big-button bg-green-500 text-white hover:bg-green-600">
+                        <span data-i18n="viewDateRange">View This Date Range</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-8" id="dataSection" style="display: none;">
+    <div class="neo-card p-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-full mb-4">
+                <span class="text-2xl font-bold text-orange-600 dark:text-orange-400">3</span>
+            </div>
+            <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-2" data-i18n="viewData">View Air Quality Data</h2>
+            <p class="text-gray-600 dark:text-gray-400" id="selectedPeriodText"></p>
+        </div>
+
+        <div id="loadingState" class="text-center py-12" style="display: none;">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-600 dark:text-gray-400" data-i18n="loadingData">Loading air quality data...</p>
+        </div>
+
+        <div id="dataDisplay" style="display: none;">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="data-item text-center">
+                    <div class="text-3xl mb-2">📊</div>
+                    <div class="text-2xl font-bold text-gray-800 dark:text-gray-100" id="totalReadings">--</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400" data-i18n="measurements">Measurements</div>
+                </div>
+                
+                <div class="data-item text-center">
+                    <div class="text-3xl mb-2">🎯</div>
+                    <div class="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                        <span id="averagePM25">--</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400 ml-1">μg/m³</span>
+                    </div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400" data-i18n="average">Average PM2.5</div>
+                </div>
+                
+                <div class="data-item text-center">
+                    <div class="text-3xl mb-2" id="qualityEmoji">😊</div>
+                    <div class="text-lg font-semibold" id="overallQuality">Good</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400" data-i18n="overallQuality">Overall Quality</div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 mb-8 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 text-center" data-i18n="airQualityChart">Air Quality Over Time</h3>
+                <div class="h-64 relative">
+                    <canvas id="historyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4" id="dataListTitle" data-i18n="selectedData">Selected Data</h3>
+                <div id="dataList" class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                    </div>
+                
+                <div class="text-center mt-6" id="showMoreSection" style="display: none;">
+                    <button onclick="showMoreData()" class="big-button bg-gray-500 text-white hover:bg-gray-600">
+                        <span data-i18n="showMore">Show More Data</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="noDataState" class="text-center py-12" style="display: none;">
+            <div class="text-6xl mb-4">🤷‍♂️</div>
+            <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2" data-i18n="noDataFound">No Data Found</h3>
+            <p class="text-gray-600 dark:text-gray-400" data-i18n="noDataMessage">We don't have air quality data for this time period. Try selecting a different date.</p>
+        </div>
+
+        <div class="text-center mt-8">
+            <button onclick="startOver()" class="big-button bg-orange-500 text-white hover:bg-orange-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span data-i18n="startOver">Start Over</span>
+            </button>
+        </div>
+    </div>
+</section>
+</main>
+
+<footer class="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 mt-8 shadow-sm">
+<div class="container mx-auto px-4 py-5 text-center">
+    <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="copyright">&copy; 2025 Air Quality Monitoring System - Tishk International University</p>
+</div>
+</footer>
+
+<script src="translations.js"></script>
+<script src="db-config.js"></script>
+
+<script>
+// Global variables
+let selectedLocation = null;
+let selectedTimeType = null;
+let selectedDate = null;
+let selectedStartDate = null;
+let selectedEndDate = null;
+let dateMode = 'single'; // 'single' or 'range'
+let currentData = [];
+let currentChart = null;
+let displayedItems = 10;
+
+// Location mapping
+const locationMapping = {
+    "36.112146, 43.953925": 'makhmor-road',
+    "36.213724, 43.988080": 'naznaz-area'
+};
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    initializePage();
+});
+
+function initializePage() {
+    setupEventListeners();
+    applyInitialTheme();
+    populateDateSelectors();
+    
+    if (window.setLanguage) {
+        const preferredLanguage = localStorage.getItem('language') || 'en';
+        setLanguage(preferredLanguage);
+    }
+}
+
+function populateDateSelectors() {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    const currentDay = new Date().getDate();
+    
+    // Populate years (current year and 2 years back)
+    const yearSelectors = ['yearSelect', 'startYearSelect', 'endYearSelect'];
+    yearSelectors.forEach(selectorId => {
+        const yearSelect = document.getElementById(selectorId);
+        yearSelect.innerHTML = '';
+        for (let year = currentYear; year >= currentYear - 2; year--) {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            if (year === currentYear) option.selected = true;
+            yearSelect.appendChild(option);
+        }
+    });
+
+    // Populate days
+    const daySelectors = ['daySelect', 'startDaySelect', 'endDaySelect'];
+    daySelectors.forEach(selectorId => {
+        const daySelect = document.getElementById(selectorId);
+        daySelect.innerHTML = '';
+        for (let day = 1; day <= 31; day++) {
+            const option = document.createElement('option');
+            option.value = day;
+            option.textContent = day;
+            if (day === currentDay) option.selected = true;
+            daySelect.appendChild(option);
+        }
+    });
+
+    // Set current month
+    const monthSelectors = ['monthSelect', 'startMonthSelect', 'endMonthSelect'];
+    monthSelectors.forEach(selectorId => {
+        const monthSelect = document.getElementById(selectorId);
+        monthSelect.value = currentMonth;
+    });
+
+    // Set yesterday as default for single date
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('daySelect').value = yesterday.getDate();
+    document.getElementById('monthSelect').value = yesterday.getMonth();
+    document.getElementById('yearSelect').value = yesterday.getFullYear();
+}
+
+function switchDateMode(mode) {
+    dateMode = mode;
+    
+    // Update tab appearance
+    const singleTab = document.getElementById('singleDateTab');
+    const rangeTab = document.getElementById('rangeDateTab');
+    
+    if (mode === 'single') {
+        singleTab.className = 'date-mode-btn px-4 py-2 rounded-md text-sm font-medium transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm';
+        rangeTab.className = 'date-mode-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100';
+        
+        document.getElementById('singleDateSection').style.display = 'block';
+        document.getElementById('rangeDateSection').style.display = 'none';
+    } else {
+        rangeTab.className = 'date-mode-btn px-4 py-2 rounded-md text-sm font-medium transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm';
+        singleTab.className = 'date-mode-btn px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100';
+        
+        document.getElementById('singleDateSection').style.display = 'none';
+        document.getElementById('rangeDateSection').style.display = 'block';
+    }
+}
+
+function updateCustomDate() {
+    // This function is called when any single date selector changes
+    // Just to validate the date is possible
+    const day = parseInt(document.getElementById('daySelect').value);
+    const month = parseInt(document.getElementById('monthSelect').value);
+    const year = parseInt(document.getElementById('yearSelect').value);
+    
+    // Basic validation - adjust day if invalid for the month
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    if (day > daysInMonth) {
+        document.getElementById('daySelect').value = daysInMonth;
+    }
+}
+
+function updateDateRange() {
+    // This function is called when any range date selector changes
+    // Basic validation for start and end dates
+    const startDay = parseInt(document.getElementById('startDaySelect').value);
+    const startMonth = parseInt(document.getElementById('startMonthSelect').value);
+    const startYear = parseInt(document.getElementById('startYearSelect').value);
+    
+    const endDay = parseInt(document.getElementById('endDaySelect').value);
+    const endMonth = parseInt(document.getElementById('endMonthSelect').value);
+    const endYear = parseInt(document.getElementById('endYearSelect').value);
+    
+    // Validate days in month
+    const startDaysInMonth = new Date(startYear, startMonth + 1, 0).getDate();
+    const endDaysInMonth = new Date(endYear, endMonth + 1, 0).getDate();
+    
+    if (startDay > startDaysInMonth) {
+        document.getElementById('startDaySelect').value = startDaysInMonth;
+    }
+    if (endDay > endDaysInMonth) {
+        document.getElementById('endDaySelect').value = endDaysInMonth;
+    }
+}
+
+function setupEventListeners() {
+    const darkModeButton = document.getElementById('dark-mode-toggle');
+    if (darkModeButton) {
+        darkModeButton.addEventListener('click', toggleDarkMode);
+    }
+}
+
+function applyInitialTheme() {
+    const storedTheme = localStorage.getItem('darkMode');
+    let isDarkMode = false;
+
+    if (storedTheme === 'enabled') {
+        isDarkMode = true;
+    } else if (storedTheme === 'disabled') {
+        isDarkMode = false;
+    } else {
+        isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+    updateThemeIcons(isDarkMode);
+}
+
+function updateThemeIcons(isDarkMode) {
+    const darkIcon = document.getElementById('theme-toggle-dark-icon');
+    const lightIcon = document.getElementById('theme-toggle-light-icon');
+    
+    if (darkIcon && lightIcon) {
+        if (isDarkMode) {
+            darkIcon.classList.remove('hidden');
+            lightIcon.classList.add('hidden');
+        } else {
+            darkIcon.classList.add('hidden');
+            lightIcon.classList.remove('hidden');
+        }
+    }
+}
+
+function toggleDarkMode() {
+    const isDarkMode = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+    updateThemeIcons(isDarkMode);
+    
+    if (currentChart) {
+        updateChart();
+    }
+}
+
+function formatDateForInput(date) {
+    return date.toISOString().split('T')[0];
+}
+
+function selectLocation(location) {
+    selectedLocation = location;
+    
+    // Update button states
+    document.querySelectorAll('.location-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-location="${location}"]`).classList.add('active');
+    
+    // Show time selection
+    document.getElementById('timeSection').style.display = 'block';
+    document.getElementById('timeSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function selectQuickTime(timeType) {
+    selectedTimeType = timeType;
+    selectedDate = null; // Clear custom date
+    
+    // Update button states
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-time="${timeType}"]`).classList.add('active');
+    
+    // Clear custom date input (if you had a single input field)
+    // document.getElementById('customDate').value = ''; // Assuming 'customDate' was an old input field
+    
+    loadData();
+}
+
+function selectCustomDate() {
+    const day = parseInt(document.getElementById('daySelect').value);
+    const month = parseInt(document.getElementById('monthSelect').value);
+    const year = parseInt(document.getElementById('yearSelect').value);
+    
+    selectedDate = new Date(year, month, day);
+    selectedTimeType = 'custom';
+    selectedStartDate = null;
+    selectedEndDate = null;
+    
+    // Clear quick time buttons
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    loadData();
+}
+
+function selectDateRange() {
+    const startDay = parseInt(document.getElementById('startDaySelect').value);
+    const startMonth = parseInt(document.getElementById('startMonthSelect').value);
+    const startYear = parseInt(document.getElementById('startYearSelect').value);
+    
+    const endDay = parseInt(document.getElementById('endDaySelect').value);
+    const endMonth = parseInt(document.getElementById('endMonthSelect').value);
+    const endYear = parseInt(document.getElementById('endYearSelect').value);
+    
+    selectedStartDate = new Date(startYear, startMonth, startDay);
+    selectedEndDate = new Date(endYear, endMonth, endDay);
+    
+    // Validate that start date is before end date
+    if (selectedStartDate > selectedEndDate) {
+        showError(window.t ? window.t('startDateAfterEnd') : 'Start date cannot be after end date.');
+        return;
+    }
+    
+    selectedTimeType = 'range';
+    selectedDate = null;
+    
+    // Clear quick time buttons
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    loadData();
+}
+
+async function loadData() {
+    // Show data section and loading state
+    document.getElementById('dataSection').style.display = 'block';
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('dataDisplay').style.display = 'none';
+    document.getElementById('noDataState').style.display = 'none';
+    
+    // Scroll to data section
+    document.getElementById('dataSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Update selected period text
+    updateSelectedPeriodText();
+
+    try {
+        if (!window.dbConfig || !window.dbConfig.client) {
+            throw new Error('Database connection not available. Please check your configuration.');
+        }
+
+        // Calculate date range
+        const { startDate, endDate } = getDateRange();
+        
+        // Query database
+        const { data: readings, error } = await window.dbConfig.client
+            .from(window.dbConfig.airQualityTable)
+            .select('*')
+            .gte('timestamp', startDate.toISOString())
+            .lte('timestamp', endDate.toISOString())
+            .order('timestamp', { ascending: false });
+
+        if (error) {
+            throw new Error(`Database query failed: ${error.message}`);
+        }
+
+        // Process data
+        let processedData = [];
+        if (readings && readings.length > 0) {
+            processedData = readings
+                .map(r => ({
+                    ...r,
+                    timestamp: new Date(r.timestamp),
+                    locationId: getLocationId(r.Location)
+                }))
+                .filter(r => {
+                    if (selectedLocation === 'all') return true;
+                    return r.locationId === selectedLocation;
+                })
+                .filter(r => r.pm25 !== null && !isNaN(r.pm25));
+        }
+
+        currentData = processedData;
+
+        if (processedData.length === 0) {
+            showNoData();
+        } else {
+            showData();
+        }
+
+    } catch (error) {
+        console.error('Error loading data:', error);
+        showNoData();
+    }
+}
+
+function getDateRange() {
+    const today = new Date();
+    let startDate = new Date();
+    let endDate = new Date();
+
+    switch (selectedTimeType) {
+        case 'today':
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+        case 'yesterday':
+            startDate.setDate(today.getDate() - 1);
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setDate(today.getDate() - 1);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+        case 'week':
+            startDate.setDate(today.getDate() - 7);
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+        case 'month':
+            startDate.setDate(today.getDate() - 30);
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+        case 'custom':
+            startDate = new Date(selectedDate);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(selectedDate);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+        case 'range':
+            startDate = new Date(selectedStartDate);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(selectedEndDate);
+            endDate.setHours(23, 59, 59, 999);
+            break;
+    }
+
+    return { startDate, endDate };
+}
+
+function getLocationId(locationString) {
+    const coordLocationId = Object.keys(locationMapping).find(key => locationString === key);
+    if (coordLocationId) {
+        return locationMapping[coordLocationId];
+    }
+    
+    if (locationString === "Makhmor Road") return 'makhmor-road';
+    if (locationString === "Naznaz Area") return 'naznaz-area';
+    
+    return 'unknown';
+}
+
+function updateSelectedPeriodText() {
+    const textElement = document.getElementById('selectedPeriodText');
+    const dataListTitle = document.getElementById('dataListTitle'); // New line
+    let locationText = '';
+    let timeText = '';
+
+    // Get location text
+    if (selectedLocation === 'all') {
+        locationText = window.t ? window.t('bothLocations') : 'Both Locations';
+    } else if (selectedLocation === 'makhmor-road') {
+        locationText = window.t ? window.t('makhmor') : 'Makhmor Road';
+    } else if (selectedLocation === 'naznaz-area') {
+        locationText = window.t ? window.t('naznaz') : 'Naznaz Area';
+    }
+
+    // Get time text
+    if (selectedTimeType === 'today') {
+        timeText = window.t ? window.t('today') : 'Today';
+    } else if (selectedTimeType === 'yesterday') {
+        timeText = window.t ? window.t('yesterday') : 'Yesterday';
+    } else if (selectedTimeType === 'week') {
+        timeText = window.t ? window.t('lastWeek') : 'Last Week';
+    } else if (selectedTimeType === 'month') {
+        timeText = window.t ? window.t('lastMonth') : 'Last Month';
+    } else if (selectedTimeType === 'custom') {
+        timeText = selectedDate.toLocaleDateString();
+    } else if (selectedTimeType === 'range') {
+        const startText = selectedStartDate.toLocaleDateString();
+        const endText = selectedEndDate.toLocaleDateString();
+        timeText = `${startText} - ${endText}`;
+    }
+
+    textElement.textContent = `${locationText} - ${timeText}`;
+        
+    // Update data list title to be more specific
+    if (dataListTitle) {
+        if (selectedTimeType === 'today') {
+            dataListTitle.textContent = window.t ? window.t('todayReadings') : "Today's Readings";
+        } else if (selectedTimeType === 'yesterday') {
+            dataListTitle.textContent = window.t ? window.t('yesterdayReadings') : "Yesterday's Readings";
+        } else if (selectedTimeType === 'custom') {
+            const dateStr = selectedDate.toLocaleDateString();
+            dataListTitle.textContent = window.t ? `${window.t('readingsFor')} ${dateStr}` : `Readings for ${dateStr}`;
+        } else if (selectedTimeType === 'range') {
+            const startText = selectedStartDate.toLocaleDateString();
+            const endText = selectedEndDate.toLocaleDateString();
+            dataListTitle.textContent = window.t ? `${window.t('readingsFrom')} ${startText} ${window.t('to')} ${endText}` : `Readings from ${startText} to ${endText}`;
+        } else if (selectedTimeType === 'week') {
+            dataListTitle.textContent = window.t ? window.t('lastWeekReadings') : 'Last Week Readings';
+        } else if (selectedTimeType === 'month') {
+            dataListTitle.textContent = window.t ? window.t('lastMonthReadings') : 'Last Month Readings';
+        } else {
+            dataListTitle.textContent = window.t ? window.t('selectedData') : 'Selected Data';
+        }
+    }
+}
+
+function showData() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('dataDisplay').style.display = 'block';
+    document.getElementById('noDataState').style.display = 'none';
+
+    // Calculate statistics
+    calculateAndDisplayStats();
+    
+    // Create chart
+    createChart();
+    
+    // Display data list
+    displayDataList();
+}
+
+function showNoData() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('dataDisplay').style.display = 'none';
+    document.getElementById('noDataState').style.display = 'block';
+}
+
+function calculateAndDisplayStats() {
+    const pm25Values = currentData.map(d => parseFloat(d.pm25));
+    const average = pm25Values.reduce((sum, val) => sum + val, 0) / pm25Values.length;
+
+    // Update display
+    document.getElementById('totalReadings').textContent = currentData.length;
+    document.getElementById('averagePM25').textContent = average.toFixed(1);
+
+    // Determine overall quality
+    const qualityInfo = getAirQualityStatus(average);
+    document.getElementById('overallQuality').textContent = qualityInfo.status;
+    
+    // Set emoji based on quality (update to match new breakpoints)
+    const qualityEmoji = document.getElementById('qualityEmoji');
+    if (average <= 5) qualityEmoji.textContent = '😊';
+    else if (average <= 10) qualityEmoji.textContent = '🙂';
+    else if (average <= 15) qualityEmoji.textContent = '😐';
+    else if (average <= 25) qualityEmoji.textContent = '😟';
+    else if (average <= 35) qualityEmoji.textContent = '😰';
+    else qualityEmoji.textContent = '☠️';
+}
+
+function createChart() {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    
+    if (currentChart) {
+        currentChart.destroy();
+    }
+
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0';
+    const textColor = isDarkMode ? '#9CA3AF' : '#64748B';
+
+    // Prepare chart data
+    let datasets = [];
+    
+    if (selectedLocation === 'all') {
+        // Show both locations
+        const makhmorData = currentData
+            .filter(d => d.locationId === 'makhmor-road')
+            .map(d => ({ x: d.timestamp, y: parseFloat(d.pm25) }))
+            .sort((a, b) => a.x - b.x);
+        
+        const naznazData = currentData
+            .filter(d => d.locationId === 'naznaz-area')
+            .map(d => ({ x: d.timestamp, y: parseFloat(d.pm25) }))
+            .sort((a, b) => a.x - b.x);
+
+        if (makhmorData.length > 0) {
+            datasets.push({
+                label: window.t ? window.t('makhmor') : 'Makhmor Road',
+                data: makhmorData,
+                borderColor: '#F97316',
+                backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                pointBackgroundColor: '#F97316',
+                pointBorderColor: isDarkMode ? '#1F2937' : '#ffffff',
+                fill: false,
+                tension: 0.1
+            });
+        }
+        
+        if (naznazData.length > 0) {
+            datasets.push({
+                label: window.t ? window.t('naznaz') : 'Naznaz Area',
+                data: naznazData,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                pointBackgroundColor: '#3B82F6',
+                pointBorderColor: isDarkMode ? '#1F2937' : '#ffffff',
+                fill: false,
+                tension: 0.1
+            });
+        }
+    } else {
+        // Show single location
+        const chartData = currentData
+            .map(d => ({ x: d.timestamp, y: parseFloat(d.pm25) }))
+            .sort((a, b) => a.x - b.x);
+
+        const color = selectedLocation === 'makhmor-road' ? '#F97316' : '#3B82F6';
+        const locationName = selectedLocation === 'makhmor-road' ? 
+            (window.t ? window.t('makhmor') : 'Makhmor Road') : 
+            (window.t ? window.t('naznaz') : 'Naznaz Area');
+
+        datasets.push({
+            label: locationName,
+            data: chartData,
+            borderColor: color,
+            backgroundColor: color.replace(')', ', 0.1)').replace('rgb', 'rgba'),
+            pointBackgroundColor: color,
+            pointBorderColor: isDarkMode ? '#1F2937' : '#ffffff',
+            fill: true,
+            tension: 0.1
+        });
+    }
+
+    currentChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                tooltip: {
+                    backgroundColor: isDarkMode ? 'rgba(17, 24, 39, 0.9)' : 'rgba(15, 23, 42, 0.9)',
+                    titleColor: isDarkMode ? '#E5E7EB' : '#E2E8F0',
+                    bodyColor: isDarkMode ? '#D1D5DB' : '#94A3B8',
+                    borderColor: isDarkMode ? '#374151' : '#E2E8F0',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)} μg/m³`;
+                        },
+                        title: function(tooltipItems) {
+                            const date = new Date(tooltipItems[0].parsed.x);
+                            return date.toLocaleString();
+                        }
+                    }
+                },
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: textColor,
+                        font: { size: 12, weight: '500' },
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: selectedTimeType === 'today' || selectedTimeType === 'yesterday' || selectedTimeType === 'custom' ? 'hour' : 'day'
+                    },
+                    grid: { display: false },
+                    ticks: {
+                        color: textColor,
+                        font: { size: 11 }
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'PM2.5 (μg/m³)',
+                        color: textColor,
+                        font: { size: 12, weight: '600' }
+                    },
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { size: 11 } }
+                }
+            }
+        }
+    });
+}
+
+function displayDataList() {
+    const dataList = document.getElementById('dataList');
+    const showMoreSection = document.getElementById('showMoreSection');
+    
+    dataList.innerHTML = '';
+    
+    const itemsToShow = Math.min(displayedItems, currentData.length);
+    
+    for (let i = 0; i < itemsToShow; i++) {
+        const reading = currentData[i];
+        const statusInfo = getAirQualityStatus(reading.pm25);
+        const locationName = getLocationDisplayName(reading.locationId);
+        
+        const item = document.createElement('div');
+        item.className = 'data-item flex justify-between items-center';
+        
+        item.innerHTML = `
+            <div class="flex items-center">
+                <div class="text-2xl mr-3">${getQualityEmoji(reading.pm25)}</div>
+                <div>
+                    <div class="font-semibold text-gray-800 dark:text-gray-100">
+                        ${parseFloat(reading.pm25).toFixed(1)} μg/m³
+                    </div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400">
+                        ${reading.timestamp.toLocaleString()}
+                    </div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusInfo.className}">
+                    ${statusInfo.status}
+                </div>
+                ${selectedLocation === 'all' ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${locationName}</div>` : ''}
+            </div>
+        `;
+        
+        dataList.appendChild(item);
+    }
+    
+    // Show "Show More" button if there are more items
+    if (currentData.length > displayedItems) {
+        showMoreSection.style.display = 'block';
+    } else {
+        showMoreSection.style.display = 'none';
+    }
+}
+
+function showMoreData() {
+    displayedItems += 10;
+    displayDataList();
+}
+
+function getLocationDisplayName(locationId) {
+    if (window.t) {
+        switch (locationId) {
+            case 'makhmor-road': return window.t('makhmor');
+            case 'naznaz-area': return window.t('naznaz');
+            default: return locationId;
+        }
+    }
+    
+    switch (locationId) {
+        case 'makhmor-road': return 'Makhmor Road';
+        case 'naznaz-area': return 'Naznaz Area';
+        default: return locationId;
+    }
+}
+
+function getAirQualityStatus(pm25) {
+    const t = window.t || (key => key.charAt(0).toUpperCase() + key.slice(1));
+    if (pm25 === undefined || pm25 === null || isNaN(pm25)) {
+        return { status: t('noData'), className: 'nodata-status', color: '#6B7280' };
+    }
+    if (pm25 <= 5) return { status: t('safe'), className: 'safe-status', color: '#10B981' };
+    if (pm25 <= 10) return { status: t('low'), className: 'low-status', color: '#90EE90' };
+    if (pm25 <= 15) return { status: t('moderate'), className: 'moderate-status', color: '#F59E0B' };
+    if (pm25 <= 25) return { status: t('unhealthy'), className: 'unhealthy-status', color: '#7F1D1D' };
+    if (pm25 <= 35) return { status: t('veryUnhealthy'), className: 'very-unhealthy-status', color: '#8B5CF6' };
+    return { status: t('hazardous'), className: 'hazardous-status', color: '#8B5CF6' };
+}
+
+function getQualityEmoji(pm25) {
+    const value = parseFloat(pm25);
+    if (value <= 5) return '😊';
+    if (value <= 10) return '🙂';
+    if (value <= 15) return '😐';
+    if (value <= 25) return '😟';
+    if (value <= 35) return '😰';
+    return '☠️';
+}
+
+function startOver() {
+    selectedLocation = null;
+    selectedTimeType = null;
+    selectedDate = null;
+    selectedStartDate = null;
+    selectedEndDate = null;
+    dateMode = 'single';
+    displayedItems = 10;
+    
+    // Reset all button states
+    document.querySelectorAll('.location-btn, .time-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Reset date mode to single
+    switchDateMode('single');
+    
+    // Hide sections
+    document.getElementById('timeSection').style.display = 'none';
+    document.getElementById('dataSection').style.display = 'none';
+    
+    // Reset date selectors to default values
+    populateDateSelectors();
+    
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateChart() {
+    if (currentChart) {
+        currentChart.destroy();
+        createChart();
+    }
+}
+
+// Make functions available globally
+window.selectLocation = selectLocation;
+window.selectQuickTime = selectQuickTime;
+window.selectCustomDate = selectCustomDate;
+window.selectDateRange = selectDateRange;
+window.switchDateMode = switchDateMode;
+window.updateCustomDate = updateCustomDate;
+window.updateDateRange = updateDateRange;
+window.showMoreData = showMoreData;
+window.startOver = startOver;
+
+</script>
+</body>
+</html>

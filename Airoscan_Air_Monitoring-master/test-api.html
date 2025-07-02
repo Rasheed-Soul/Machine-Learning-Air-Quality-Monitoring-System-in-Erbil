@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase API Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Supabase API Test</h1>
+    <button id="test-button">Test Connection</button>
+    <button id="insert-sample">Insert Sample Data</button>
+    <pre id="output">Results will appear here...</pre>
+    
+    <script>
+        // Configuration values
+        const supabaseUrl = 'https://gyrcemnqauyoxkjwprjg.supabase.co';
+        
+        // Get the API key from localStorage if available
+        let supabaseKey = '';
+        try {
+            supabaseKey = localStorage.getItem('supabase_api_key') || '';
+        } catch (e) {
+            console.warn('Unable to access localStorage', e);
+        }
+        
+        // Function to test the API connection
+        async function testConnection() {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing connection...';
+            
+            if (!supabaseKey) {
+                output.textContent = 'ERROR: No API key found in localStorage. Please initialize the database first using init-db.html';
+                return;
+            }
+            
+            try {
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                output.textContent += '\nClient created successfully';
+                
+                // Try to list all tables
+                const { data: tableData, error: tableError } = await supabase
+                    .from('_tables')
+                    .select('*');
+                
+                if (tableError) {
+                    output.textContent += `\nError accessing tables: ${tableError.message}\n${JSON.stringify(tableError, null, 2)}`;
+                } else {
+                    output.textContent += `\nTables found: ${JSON.stringify(tableData, null, 2)}`;
+                }
+                
+                // Try to access the air_quality_readings table
+                const { data, error } = await supabase
+                    .from('sensor_data')
+                    .select('*')
+                    .limit(5);
+                
+                if (error) {
+                    output.textContent += `\nError accessing sensor_data: ${error.message}\n${JSON.stringify(error, null, 2)}`;
+                } else {
+                    output.textContent += `\nData from sensor_data: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.textContent += `\nException: ${error.message}`;
+                console.error('API test failed:', error);
+            }
+        }
+        
+        // Function to insert sample data
+        async function insertSampleData() {
+            const output = document.getElementById('output');
+            output.textContent = 'Inserting sample data...';
+            
+            if (!supabaseKey) {
+                output.textContent = 'ERROR: No API key found in localStorage. Please initialize the database first using init-db.html';
+                return;
+            }
+            
+            try {
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                
+                // Generate sample data
+                const now = new Date();
+                const sampleData = [
+                    {
+                        pm25: Math.floor(Math.random() * 50) + 10,
+                        Location: 'Makhmor Road',
+                        timestamp: now.toISOString()
+                    },
+                    {
+                        pm25: Math.floor(Math.random() * 40) + 5,
+                        Location: 'Namaz Area',
+                        timestamp: now.toISOString()
+                    }
+                ];
+                
+                // Insert sample data
+                const { data, error } = await supabase
+                    .from('sensor_data')
+                    .insert(sampleData)
+                    .select();
+                
+                if (error) {
+                    output.textContent = `Error inserting sample data: ${error.message}\n${JSON.stringify(error, null, 2)}`;
+                } else {
+                    output.textContent = `Sample data inserted successfully: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                output.textContent = `Exception: ${error.message}`;
+                console.error('Insert sample data failed:', error);
+            }
+        }
+        
+        // Setup button click handlers
+        document.getElementById('test-button').addEventListener('click', testConnection);
+        document.getElementById('insert-sample').addEventListener('click', insertSampleData);
+    </script>
+</body>
+</html> 

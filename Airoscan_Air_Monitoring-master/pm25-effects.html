@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PM2.5 Information</title> 
+    <meta name="description" content="Learn about PM2.5 air pollution, health effects, and protection measures. Part of Airoscan Air Quality Monitoring System.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Apply theme immediately to prevent flash
+        (function() {
+            const storedTheme = localStorage.getItem('darkMode');
+            let isDarkMode = false;
+            
+            if (storedTheme === 'enabled') {
+                isDarkMode = true;
+            } else if (storedTheme === 'disabled') {
+                isDarkMode = false;
+            } else {
+                isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+            
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark');
+            }
+
+            // Apply language direction immediately if available - translations.js will set lang attribute
+            const lang = localStorage.getItem('language') || 'en';
+            document.documentElement.dir = (lang === 'ar' || lang === 'ku') ? 'rtl' : 'ltr';
+        })();
+    </script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --orange-primary: #FF7A00;
+            --orange-secondary: #FFB766;
+            --blue-primary: #3B82F6;
+            --blue-secondary: #60A5FA;
+        }
+        
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #F9FAFB;
+            color: #1F2937;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        [lang="ar"] body, [lang="ku"] body {
+            font-family: 'Noto Sans Arabic', 'Manrope', sans-serif;
+        }
+        
+        .dark body {
+            background-color: #0D1117;
+            color: #C9D1D9;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, var(--orange-primary) 0%, var(--orange-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-blue {
+            background: linear-gradient(90deg, var(--blue-primary) 0%, var(--blue-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.85);
+            border-bottom: 1px solid rgba(230, 230, 230, 0.7);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        
+        .dark .glass-effect {
+            background: rgba(22, 27, 34, 0.85);
+            border-bottom: 1px solid #30363D;
+        }
+        
+        .neo-card {
+            background: #FFFFFF;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.02);
+            border-radius: 16px;
+            border: none;
+            position: relative;
+            overflow: hidden;
+            transform: translateY(0);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s;
+            margin-bottom: 15px;
+        }
+        
+        .dark .neo-card {
+            background: #1E293B;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+        }
+        
+        .neo-card:hover {
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08), 0 0 60px rgba(255, 122, 0, 0.08);
+            transform: translateY(-8px);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 4px;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: #374151;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: var(--orange-primary);
+            border-radius: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: var(--orange-secondary);
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .pm-scale-item {
+            transition: all 0.3s ease;
+        }
+        
+        .pm-scale-item:hover {
+            transform: translateX(8px);
+        }
+
+        /* Language button styles (copied from index.html for consistency) */
+        .lang-btn {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s;
+        }
+        
+        .dark .lang-btn {
+            background-color: #374151;
+            color: #9ca3af;
+            border: 1px solid #4b5563;
+        }
+        
+        .lang-btn:hover {
+            background-color: #e5e7eb;
+        }
+        
+        .dark .lang-btn:hover {
+            background-color: #4b5563;
+        }
+        
+        .lang-btn.active {
+            background-color: var(--orange-primary);
+            color: white;
+            border-color: var(--orange-primary);
+        }
+        /* RTL support (copied from index.html for consistency) */
+        [dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+            margin-right: 0.75rem;
+            margin-left: 0;
+        }
+        [dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+            margin-right: 0.5rem;
+            margin-left: 0;
+        }
+        [dir="rtl"] .mr-2 { /* For icon spacing if needed */
+            margin-right: 0;
+            margin-left: 0.5rem;
+        }
+    </style>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        orange: { primary: '#FF7A00', secondary: '#FFB766' },
+                        blue: { primary: '#3B82F6', secondary: '#60A5FA' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen custom-scrollbar">
+    <header class="sticky top-0 z-40 glass-effect shadow-sm">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <a href="index.html" class="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span class="text-sm font-medium" data-i18n="backToDashboard">Back to Dashboard</span>
+                </a>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-2">
+                    <button onclick="setLanguage('en')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="en">EN</button>
+                    <button onclick="setLanguage('ku')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="ku">کو</button>
+                    <button onclick="setLanguage('ar')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="ar">ع</button>
+                </div>
+                <button id="dark-mode-toggle" class="p-2 rounded-lg bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors duration-200 shadow-sm border border-gray-100 dark:border-gray-700">
+                    <svg id="theme-toggle-dark-icon" class="hidden h-5 w-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden h-5 w-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 5.05A1 1 0 003.636 3.636l-.707.707a1 1 0 101.414 1.414l.707-.707zM3 11a1 1 0 100-2H2a1 1 0 100 2h1zM13 17a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM4.95 14.95A1 1 0 006.364 16.364l.707-.707a1 1 0 00-1.414-1.414l-.707.707z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container mx-auto px-4 py-6">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2" data-i18n="understandingPM25PageTitle">Understanding PM2.5 Air Pollution</h1>
+            <p class="text-gray-600 dark:text-gray-400" data-i18n="essentialInfo">Essential information about fine particulate matter and its impact on health</p>
+        </div>
+        
+        <section class="mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="neo-card p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400" data-i18n="whatIsPM25">What is PM2.5?</h3>
+                        <div class="h-8 w-8 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                            <span class="text-lg">🔬</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300" data-i18n="pm25Description">Microscopic particles less than 2.5 micrometers in diameter that can penetrate deep into lungs</p>
+                </div>
+                
+                <div class="neo-card p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400" data-i18n="whyItMatters">Why It Matters</h3>
+                        <div class="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                            <span class="text-lg">⚠️</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300" data-i18n="healthProblems">Can cause serious health problems including heart disease, lung cancer, and respiratory issues</p>
+                </div>
+                
+                <div class="neo-card p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400" data-i18n="protection">Protection</h3>
+                        <div class="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                            <span class="text-lg">🛡️</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300" data-i18n="protectionMeasures">Monitor air quality, wear N95 masks when needed, and use air purifiers indoors</p>
+                </div>
+            </div>
+        </section>
+        
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4" data-i18n="pm25ScaleTitle">PM2.5 Concentration Scale</h2>
+            <div class="neo-card p-6">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4" data-i18n="whoStandards">Based on WHO Air Quality standards</p>
+                <div class="space-y-3">
+                    <div class="pm-scale-item flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="w-16 h-16 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold mr-4 text-sm">
+                            0-5
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-green-700 dark:text-green-400" data-i18n="Safe">Safe</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="noHealthImpacts">Air quality is satisfactory, posing little or no risk.</p>
+                        </div>
+                        <div class="text-2xl bg-green-100 dark:bg-green-900/20 w-10 h-10 rounded-full flex items-center justify-center">
+                            <span class="text-base">✓</span>
+                        </div>
+                    </div>
+                    
+                    <div class="pm-scale-item flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="w-16 h-16 bg-green-500 rounded-lg flex items-center justify-center text-white font-bold mr-4 text-sm">
+                            5.1-10
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-yellow-700 dark:text-green-300" data-i18n="Low">Low</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="acceptable">Acceptable - Unusually sensitive people should consider limiting prolonged outdoor exertion.</p>
+                        </div>
+                        <div class="text-2xl">🙂</div>
+                    </div>
+                    
+                    <div class="pm-scale-item flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="w-16 h-16 bg-yellow-500 rounded-lg flex items-center justify-center text-white font-bold mr-4 text-sm">
+                            10.1-15
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-yellow-600 dark:text-yellow-400" data-i18n="moderate">Moderate</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="sensitiveGroups">People with heart/lung disease, children, and older adults should limit prolonged outdoor exertion.</p>
+                        </div>
+                        <div class="text-2xl">😐</div>
+                    </div>
+                    
+                    <div class="pm-scale-item flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="w-16 h-16 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold mr-4 text-sm">
+                            15.1-25
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-orange-500 dark:text-orange-500" data-i18n="unhealthy">Unhealthy</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="everyoneAffected">Significant increase in asthma, and early death, wear masks when outside.</p>
+                        </div>
+                        <span class="text-2xl">😟</span>
+                    </div>
+                    
+                    <div class="pm-scale-item flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="w-16 h-16 bg-red-900 rounded-lg flex items-center justify-center text-white font-bold mr-4 text-sm">
+                            25.1-35
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-red-700 dark:text-red-500" data-i18n="veryUnhealthy">Very Unhealthy</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="healthAlert">Health alert: serious health effects for everyone.</p>
+                        </div>
+                        <span class="text-2xl">😰</span>
+                    </div>
+                    
+                    <div class="pm-scale-item flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div class="w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold mr-4 text-sm">
+                            35.1+
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-purple-700 dark:text-purple-400" data-i18n="hazardous">Hazardous</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="healthEmergency">Health emergency - Everyone should avoid all outdoor activity.</p>
+                        </div>
+                        <span class="text-2xl">☠️</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <section>
+                <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4" data-i18n="healthEffectsTitle">Health Effects</h2>
+                <div class="neo-card p-6">
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-medium text-orange-600 dark:text-orange-400 mb-2" data-i18n="shortTermExposure">Short-term Exposure</h4>
+                            <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                                <li data-i18n="eyeNoseThroatIrritation">• Eye, nose, and throat irritation</li>
+                                <li data-i18n="coughingShortnessBreath">• Coughing and shortness of breath</li>
+                                <li data-i18n="worseningAsthma">• Worsening asthma symptoms</li>
+                                <li data-i18n="increasedRespiratoryInfections">• Increased respiratory infections</li>
+                            </ul>
+                        </div>
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h4 class="font-medium text-red-600 dark:text-red-400 mb-2" data-i18n="longTermExposure">Long-term Exposure</h4>
+                            <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                                <li data-i18n="reducedLungFunction">• Reduced lung function</li>
+                                <li data-i18n="chronicBronchitis">• Development of chronic bronchitis</li>
+                                <li data-i18n="increasedHeartDisease">• Increased risk of heart disease</li>
+                                <li data-i18n="lungCancer">• Lung cancer</li>
+                                <li data-i18n="prematureDeath">• Premature death</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section>
+                <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4" data-i18n="protectionTitlePage">Protection Measures</h2>
+                <div class="neo-card p-6">
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-medium text-blue-600 dark:text-blue-400 mb-2" data-i18n="outdoorProtection">Outdoor Protection</h4>
+                            <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                                <li data-i18n="checkAirQualityOutside">• Check air quality before going outside</li>
+                                <li data-i18n="wearN95Masks">• Wear N95/KN95/FFP2 masks on high pollution days</li>
+                                <li data-i18n="avoidBusyRoads">• Avoid busy roads and industrial areas</li>
+                                <li data-i18n="exerciseIndoorsPM35">• Exercise indoors when PM2.5 is above 35.4 μg/m³</li>
+                            </ul>
+                        </div>
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h4 class="font-medium text-green-600 dark:text-green-400 mb-2" data-i18n="indoorProtection">Indoor Protection</h4>
+                            <ul class="space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                                <li data-i18n="keepWindowsClosedPolluted">• Keep windows closed on polluted days</li>
+                                <li data-i18n="useHEPAAirPurifiers">• Use HEPA air purifiers</li>
+                                <li data-i18n="avoidSmokingBurningCandles">• Avoid smoking and burning candles</li>
+                                <li data-i18n="maintainGoodVentilationClean">• Maintain good ventilation on clean days</li>
+                                <li data-i18n="cleanACFilters">• Clean or replace AC filters regularly</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+        
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4" data-i18n="commonSourcesTitle">Common Sources in Kurdistan</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="neo-card p-4 text-center">
+                    <div class="text-3xl mb-2">🚗</div>
+                    <h4 class="font-medium text-sm" data-i18n="vehicleEmissions">Vehicle Emissions</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-i18n="vehicleExamples">Cars, trucks, buses</p>
+                </div>
+                <div class="neo-card p-4 text-center">
+                    <div class="text-3xl mb-2">🏭</div>
+                    <h4 class="font-medium text-sm" data-i18n="industry">Industry</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-i18n="industryExamples">Factories, power plants</p>
+                </div>
+                <div class="neo-card p-4 text-center">
+                    <div class="text-3xl mb-2">🏗️</div>
+                    <h4 class="font-medium text-sm" data-i18n="construction">Construction</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-i18n="constructionExamples">Dust, equipment</p>
+                </div>
+                <div class="neo-card p-4 text-center">
+                    <div class="text-3xl mb-2">🔥</div>
+                    <h4 class="font-medium text-sm" data-i18n="burning">Burning</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-i18n="burningExamples">Waste, agriculture</p>
+                </div>
+            </div>
+        </section>
+        
+        <section class="mb-8">
+            <div class="neo-card p-8 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-gray-800 dark:to-gray-700 text-center">
+                <h3 class="text-2xl font-bold mb-3" data-i18n="stayInformedCTA">Stay Informed, Stay Safe</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-6" data-i18n="monitorRealTimeCTA">Monitor real-time air quality data from our sensors across Erbil</p>
+                <a href="index.html" class="inline-flex items-center px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all transform hover:scale-105 shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span data-i18n="viewLiveData">View Live Air Quality Data</span>
+                </a>
+            </div>
+        </section>
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4" data-i18n="referencesTitle">References & Sources</h2>
+            <div class="neo-card p-6">
+                <div class="space-y-4">
+                    <div class="border-l-4 border-orange-500 pl-4">
+                        <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-1" data-i18n="whoSourceTitle">World Health Organization (WHO)</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1" data-i18n="whoSourceTitle">WHO global air quality guidelines: particulate matter (‎PM2.5 and PM10)‎, ozone, nitrogen dioxide, sulfur dioxide and carbon monoxide
+                        </p>
+                        <a href="https://www.who.int/publications/i/item/9789240034228" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 dark:text-blue-400 hover:underline" data-i18n="whoSourceLinkText">
+                            WHO PM2.5 Basics →
+                        </a>
+                    </div>
+                    
+                    <div class="border-l-4 border-blue-500 pl-4">
+                        <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-1" data-i18n="whoSourceTitle">World Health Organization (WHO)</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1" data-i18n="whoSourceDesc">Global Air Quality Guidelines 2021</p>
+                        <a href="https://www.who.int/news-room/fact-sheets/detail/ambient-(outdoor)-air-quality-and-health" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 dark:text-blue-400 hover:underline" data-i18n="whoSourceLinkText">
+                            WHO Air Quality Guidelines →
+                        </a>
+                    </div>
+                    
+                    <div class="border-l-4 border-green-500 pl-4">
+                        <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-1" data-i18n="alaSourceTitle">American Lung Association</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1" data-i18n="alaSourceDesc">Health Effects of Particle Pollution</p>
+                        <a href="https://www.lung.org/clean-air/outdoors/what-makes-air-unhealthy/particle-pollution" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 dark:text-blue-400 hover:underline" data-i18n="alaSourceLinkText">
+                            Particle Pollution Health Effects →
+                        </a>
+                    </div>
+                    
+                    <div class="border-l-4 border-purple-500 pl-4">
+                        <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-1" data-i18n="cdcSourceTitle">Centers for Disease Control and Prevention (CDC)</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1" data-i18n="cdcSourceDesc">Air Quality and Health Information</p>
+                        <a href="https://www.cdc.gov/air/particulate_matter.html" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 dark:text-blue-400 hover:underline" data-i18n="cdcSourceLinkText">
+                            CDC Particulate Matter →
+                        </a>
+                    </div>
+                    
+                    <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="referencesNote">
+                            <strong>Note:</strong> The PM2.5 concentration ranges shown are based on the WHO Air Quality standards. 
+                            Different countries may use slightly different breakpoints. The WHO recommends even stricter guidelines with an annual mean of 5 μg/m³ 
+                            and a 24-hour mean of 15 μg/m³ for optimal health protection.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 mt-8 shadow-sm">
+        <div class="container mx-auto px-4 py-5 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="copyright">&copy; <span id="current-year">2025</span> Air Quality Monitoring System - Tishk International University</p>
+        </div>
+    </footer>
+
+    <script src="translations.js"></script>
+    
+    <script>
+        // Dark mode toggle (existing script)
+        function updateThemeIcons(isDarkMode) {
+            const darkIcon = document.getElementById('theme-toggle-dark-icon');
+            const lightIcon = document.getElementById('theme-toggle-light-icon');
+            
+            if (isDarkMode) {
+                darkIcon.classList.remove('hidden');
+                lightIcon.classList.add('hidden');
+            } else {
+                darkIcon.classList.add('hidden');
+                lightIcon.classList.remove('hidden');
+            }
+        }
+        
+        function toggleDarkMode() {
+            const isDarkMode = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+            updateThemeIcons(isDarkMode);
+             // If translations.js is loaded and updateTranslations is available, call it to re-apply for any dark-mode specific text if needed (unlikely for this page).
+            if (window.updateTranslations) {
+                // window.updateTranslations(); // Usually not needed just for dark mode if text content doesn't change
+            }
+        }
+        
+        // Initialize theme (existing script)
+        const initStoredTheme = localStorage.getItem('darkMode');
+        let initIsDarkMode = false;
+        
+        if (initStoredTheme === 'enabled') {
+            initIsDarkMode = true;
+        } else if (initStoredTheme === 'disabled') {
+            initIsDarkMode = false;
+        } else {
+            initIsDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+        // Ensure class is set on html element correctly on initial load by the IIFE at the top
+        // document.documentElement.classList.toggle('dark', initIsDarkMode); // Already handled by IIFE at the top
+        updateThemeIcons(initIsDarkMode);
+        
+        // Add event listener for dark mode toggle
+        const darkModeButton = document.getElementById('dark-mode-toggle');
+        if (darkModeButton) {
+            darkModeButton.addEventListener('click', toggleDarkMode);
+        }
+        
+        // Update current year (existing script)
+        const currentYearSpan = document.getElementById('current-year');
+        if (currentYearSpan) { // Check if the span exists before trying to set its content
+             currentYearSpan.textContent = new Date().getFullYear();
+        }
+
+        // The translations.js script now handles its own DOMContentLoaded listener
+        // to call setLanguage and apply translations. No need for extra calls here
+        // unless there's specific logic for this page that needs to run after translations.
+    </script>
+</body>
+</html>
