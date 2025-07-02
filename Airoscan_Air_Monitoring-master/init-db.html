@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Quality Database Connection</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #F9FAFB;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .log-output {
+            background-color: #1E293B;
+            color: #E2E8F0;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .btn {
+            display: inline-block;
+            background-color: #FF7A00;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background-color: #E06E00;
+        }
+        
+        .btn:disabled {
+            background-color: #CBD5E0;
+            cursor: not-allowed;
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        
+        .label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold mb-6">Air Quality Database Connection</h1>
+        
+        <!-- Password Protection Form -->
+        <div id="password-protection" class="card">
+            <h2 class="text-xl font-semibold mb-4">Access Control</h2>
+            <p class="mb-4">This page contains sensitive configuration options and should only be accessed by authorized personnel.</p>
+            <div class="input-group">
+                <label class="label" for="access_password">Password:</label>
+                <input class="input" type="password" id="access_password" placeholder="Enter the access password">
+            </div>
+            <button id="unlock-btn" class="btn">Unlock Configuration</button>
+        </div>
+        
+        <!-- Main Configuration (Hidden until password verified) -->
+        <div id="main-content" style="display: none;">
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4">Database Connection Settings</h2>
+                <form id="config-form">
+                    <div class="input-group">
+                        <label class="label" for="supabase_url">Supabase URL:</label>
+                        <input class="input" type="text" id="supabase_url" name="supabase_url" value="https://gyrcemnqauyoxkjwprjg.supabase.co" readonly>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="label" for="supabase_key">Supabase API Key:</label>
+                        <input class="input" type="password" id="supabase_key" name="supabase_key" placeholder="Enter your Supabase API key">
+                        <p class="text-sm text-gray-500 mt-1">
+                            You can find this in your Supabase dashboard under Project Settings > API > Project API keys.
+                            Use the "anon" key for read-only access.
+                        </p>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="label" for="table_name">Table Name:</label>
+                        <input class="input" type="text" id="table_name" name="table_name" value="sensor_data" readonly>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <button type="submit" id="init-btn" class="btn">Connect to Database</button>
+                        <button type="button" id="test-btn" class="btn ml-4" style="background-color: #3B82F6;">Test Connection</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4">Log Output</h2>
+                <div id="log-output" class="log-output">
+                    > Waiting for action...
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4">Instructions</h2>
+                <ol class="list-decimal pl-5 space-y-2">
+                    <li>Enter your Supabase API key (anon public key) in the form above.</li>
+                    <li>Click "Test Connection" to verify your connection to the database.</li>
+                    <li>Click "Connect to Database" to establish a read-only connection.</li>
+                    <li>Once connected, go to <a href="index.html" class="text-blue-600 underline">the dashboard</a> to view the data.</li>
+                </ol>
+                
+                <div class="mt-4 bg-blue-50 p-4 rounded">
+                    <p class="text-sm text-blue-800">
+                        <strong>Note:</strong> This is a read-only connection. No data will be modified or inserted.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Get DOM elements
+        const passwordProtection = document.getElementById('password-protection');
+        const mainContent = document.getElementById('main-content');
+        const unlockBtn = document.getElementById('unlock-btn');
+        const accessPassword = document.getElementById('access_password');
+        
+        const configForm = document.getElementById('config-form');
+        const initBtn = document.getElementById('init-btn');
+        const testBtn = document.getElementById('test-btn');
+        const logOutput = document.getElementById('log-output');
+        
+        // Set the initialization password
+        const INIT_PASSWORD = "uni_2025_final";
+        
+        // Function to check the password
+        unlockBtn.addEventListener('click', function() {
+            const password = accessPassword.value;
+            
+            if (password === INIT_PASSWORD) {
+                // Password correct - show configuration
+                passwordProtection.style.display = 'none';
+                mainContent.style.display = 'block';
+            } else {
+                // Password incorrect
+                alert('Incorrect password. Access denied.');
+                accessPassword.value = '';
+            }
+        });
+        
+        // Allow Enter key to submit password
+        accessPassword.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                unlockBtn.click();
+            }
+        });
+        
+        // Function to log messages
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.innerHTML += `\n[${timestamp}] ${message}`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+        
+        // Connect to database (read-only)
+        configForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const supabaseUrl = document.getElementById('supabase_url').value;
+            const supabaseKey = document.getElementById('supabase_key').value;
+            const tableName = document.getElementById('table_name').value;
+            
+            if (!supabaseKey) {
+                log('Error: Please enter your Supabase API key');
+                return;
+            }
+            
+            log('Establishing read-only connection to database...');
+            initBtn.disabled = true;
+            testBtn.disabled = true;
+            
+            try {
+                // Create a Supabase client
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                
+                // Create a read-only wrapper around the Supabase client
+                const readOnlyClient = {
+                    from: (table) => {
+                        const originalFrom = supabase.from(table);
+                        return {
+                            select: originalFrom.select.bind(originalFrom),
+                            // Block write operations by throwing errors
+                            insert: () => Promise.reject(new Error('Insert operations are not allowed in dashboard mode')),
+                            update: () => Promise.reject(new Error('Update operations are not allowed in dashboard mode')),
+                            delete: () => Promise.reject(new Error('Delete operations are not allowed in dashboard mode')),
+                            upsert: () => Promise.reject(new Error('Upsert operations are not allowed in dashboard mode'))
+                        };
+                    },
+                    // Only expose read methods
+                    auth: supabase.auth,
+                    rpc: (fn, ...args) => Promise.reject(new Error('RPC calls are not allowed in dashboard mode'))
+                };
+                
+                // Replace the original client with our read-only wrapper
+                window.supabase = readOnlyClient;
+                
+                log('Supabase client initialized (dashboard mode - read-only)');
+                
+                // Test read-only enforcement
+                try {
+                    await readOnlyClient.from('sensor_data').insert([{ pm25: 0, Location: 'test' }]);
+                    throw new Error('Write operations are not properly blocked');
+                } catch (e) {
+                    if (e.message.includes('not allowed in dashboard mode')) {
+                        log('Verified: Write operations are blocked');
+                    } else {
+                        throw e;
+                    }
+                }
+                
+                // Check if we can access the table and read recent data
+                log('Verifying read access and fetching recent data...');
+                const { data: recentData, error: dataError } = await readOnlyClient
+                    .from(tableName)
+                    .select('*')  // Select all columns to see what we have
+                    .order('timestamp', { ascending: false })
+                    .limit(5);
+                    
+                if (dataError) {
+                    throw new Error(`Cannot access table: ${dataError.message}`);
+                }
+                
+                log('Successfully verified read access to database');
+                
+                if (recentData && recentData.length > 0) {
+                    log('\nMost recent readings:');
+                    log('Raw data from database:');
+                    recentData.forEach(reading => {
+                        log(JSON.stringify(reading, null, 2));  // Show all fields
+                    });
+                } else {
+                    log('\nNo readings found in the database. Checking table structure...');
+                    
+                    // Get table information
+                    const { data: tableInfo, error: tableError } = await readOnlyClient
+                        .from(tableName)
+                        .select('*')
+                        .limit(1);
+                        
+                    if (tableError) {
+                        log(`Error checking table structure: ${tableError.message}`);
+                    } else {
+                        log('\nTable columns available:');
+                        if (tableInfo && tableInfo.length > 0) {
+                            log(Object.keys(tableInfo[0]).join(', '));
+                        } else {
+                            log('Table appears to be empty');
+                        }
+                    }
+                }
+                
+                // Count total records
+                const { count, error: countError } = await readOnlyClient
+                    .from(tableName)
+                    .select('*', { count: 'exact', head: true });
+                    
+                if (countError) {
+                    log(`Warning: Could not count records: ${countError.message}`);
+                } else {
+                    log(`\nTotal records in database: ${count}`);
+                }
+                
+                // Update the db-config.js file in memory for this session
+                if (!window.dbConfig) {
+                    window.dbConfig = {};
+                }
+                
+                // Save API key to localStorage
+                try {
+                    localStorage.setItem('supabase_api_key', supabaseKey);
+                    log('API key saved to browser local storage');
+                } catch (e) {
+                    log('Warning: Unable to save API key to local storage: ' + e.message);
+                }
+                
+                window.dbConfig.supabaseUrl = supabaseUrl;
+                window.dbConfig.supabaseKey = supabaseKey;
+                window.dbConfig.airQualityTableName = tableName;
+                window.dbConfig.isReadOnly = true;
+                window.dbConfig.supabase = readOnlyClient; // Store the read-only client
+                
+                log('\nDashboard connection established successfully!');
+                log(`\nYou can now go to the dashboard to view your data: <a href="index.html" class="text-blue-400 underline">Open Dashboard</a>`);
+                
+            } catch (error) {
+                log(`Error during connection: ${error.message}`);
+            } finally {
+                initBtn.disabled = false;
+                testBtn.disabled = false;
+            }
+        });
+        
+        // Test database connection
+        testBtn.addEventListener('click', async function() {
+            const supabaseUrl = document.getElementById('supabase_url').value;
+            const supabaseKey = document.getElementById('supabase_key').value;
+            
+            if (!supabaseKey) {
+                log('Error: Please enter your Supabase API key');
+                return;
+            }
+            
+            log('Testing dashboard connection to Supabase...');
+            
+            try {
+                // Create a read-only test client
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                const readOnlyTest = {
+                    from: (table) => {
+                        const originalFrom = supabase.from(table);
+                        return {
+                            select: originalFrom.select.bind(originalFrom),
+                            insert: () => Promise.reject(new Error('Insert operations are not allowed in dashboard mode')),
+                            update: () => Promise.reject(new Error('Update operations are not allowed in dashboard mode')),
+                            delete: () => Promise.reject(new Error('Delete operations are not allowed in dashboard mode')),
+                            upsert: () => Promise.reject(new Error('Upsert operations are not allowed in dashboard mode'))
+                        };
+                    }
+                };
+                
+                // Test read access
+                const { data, error } = await readOnlyTest
+                    .from('sensor_data')
+                    .select('pm25::float4')
+                    .limit(1);
+                
+                if (error) {
+                    log(`Error: ${error.message}`);
+                    return;
+                }
+                
+                // Verify write operations are blocked
+                try {
+                    await readOnlyTest.from('sensor_data').insert([{ pm25: 0, Location: 'test' }]);
+                    log('Error: Write operations are not properly blocked');
+                } catch (e) {
+                    if (e.message.includes('not allowed in dashboard mode')) {
+                        log('Success: Write operations are properly blocked');
+                    } else {
+                        throw e;
+                    }
+                }
+                
+                log('Connection successful! Dashboard access verified.');
+            } catch (error) {
+                log(`Error: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

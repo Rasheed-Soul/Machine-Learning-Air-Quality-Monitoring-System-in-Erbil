@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Airoscan - Real-Time Air Quality in Erbil, Kurdistan</title>
+        <meta name="description" content="Airoscan provides real-time PM2.5 air quality monitoring and forecasts for Erbil, Kurdistan Region. Track air quality at Makhmor Road and Naznaz Area with live data, interactive maps, and trends.">
+        <meta name="keywords" content="air quality, PM2.5, Erbil, Kurdistan, Airoscan, air pollution, real-time monitoring, air quality forecast, Makhmor Road, Naznaz Area, Tishk International University">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            // Run immediately to set the correct theme class
+            (function() {
+                const storedTheme = localStorage.getItem('darkMode');
+                let isDarkMode = false;
+
+                if (storedTheme === 'enabled') {
+                    isDarkMode = true;
+                } else if (storedTheme === 'disabled') {
+                    isDarkMode = false;
+                } else {
+                    isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+
+                // Apply theme immediately
+                if (isDarkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+                
+                // Apply language settings
+                const lang = localStorage.getItem('language') || 'en';
+                document.documentElement.lang = lang;
+                document.documentElement.dir = (lang === 'ar' || lang === 'ku') ? 'rtl' : 'ltr';
+            })();
+        </script>
+
+        <script src="https://www.lactame.com/lib/ml-regression/6.0.0/ml-regression.min.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        
+        <style>
+            :root {
+                --orange-primary: #FF7A00;
+                --orange-secondary: #FFB766;
+                --blue-primary: #3B82F6;
+                --blue-secondary: #60A5FA;
+
+                /* Light Mode Defaults */
+                --bg-primary-light: #F9FAFB;
+                --bg-secondary-light: #FFFFFF;
+                --card-bg-light: #FFFFFF;
+                --text-primary-light: #1F2937;
+                --text-secondary-light: #4B5563;
+                --text-muted-light: #6B7280;
+                --border-color-light: #E5E7EB;
+                --header-bg-light: rgba(255, 255, 255, 0.85);
+                --header-border-light: rgba(230, 230, 230, 0.7);
+                --icon-color-light: #4B5563;
+                --button-bg-light: #FFFFFF;
+                --button-hover-bg-light: #F3F4F6;
+                --leaflet-control-bg-light: #ffffff;
+                --leaflet-control-text-light: #333333;
+                --leaflet-attribution-bg-light: rgba(255, 255, 255, 0.8);
+                --leaflet-attribution-text-light: #333333;
+            }
+
+            /* Dark Mode Variables */
+            .dark {
+                --bg-primary-dark: #0D1117;
+                --bg-secondary-dark: #161B22;
+                --card-bg-dark: #1E293B;
+                --text-primary-dark: #C9D1D9;
+                --text-secondary-dark: #8B949E;
+                --text-muted-dark: #586069;
+                --border-color-dark: #30363D;
+                --header-bg-dark: rgba(22, 27, 34, 0.85);
+                --header-border-dark: #30363D;
+                --icon-color-dark: #C9D1D9;
+                --button-bg-dark: #21262D;
+                --button-hover-bg-dark: #30363D;
+                --leaflet-control-bg-dark: #161B22;
+                --leaflet-control-text-dark: #C9D1D9;
+                --leaflet-attribution-bg-dark: rgba(13, 17, 23, 0.8);
+                --leaflet-attribution-text-dark: #8B949E;
+            }
+
+            body {
+                font-family: 'Manrope', sans-serif;
+                background-color: var(--bg-primary-light);
+                color: var(--text-primary-light);
+                transition: background-color 0.3s, color 0.3s;
+            }
+            
+            /* Font support for Arabic and Kurdish */
+            [lang="ar"], [lang="ku"] {
+                font-family: 'Noto Sans Arabic', 'Manrope', sans-serif;
+            }
+            
+            /* Number formatting for Arabic - keep numbers LTR */
+            [lang="ar"] .number-en, [lang="ku"] .number-en {
+                direction: ltr;
+                display: inline-block;
+            }
+            
+            .dark body {
+                background-color: var(--bg-primary-dark);
+                color: var(--text-primary-dark);
+                background-image: none;
+            }
+
+            /* Language button styles */
+            .lang-btn {
+                background-color: #f3f4f6;
+                color: #4b5563;
+                border: 1px solid #e5e7eb;
+                transition: all 0.2s;
+            }
+            
+            .dark .lang-btn {
+                background-color: #374151;
+                color: #9ca3af;
+                border: 1px solid #4b5563;
+            }
+            
+            .lang-btn:hover {
+                background-color: #e5e7eb;
+            }
+            
+            .dark .lang-btn:hover {
+                background-color: #4b5563;
+            }
+            
+            .lang-btn.active {
+                background-color: var(--orange-primary);
+                color: white;
+                border-color: var(--orange-primary);
+            }
+            
+            /* RTL support */
+            [dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+                margin-right: 0.75rem;
+                margin-left: 0;
+            }
+            
+            [dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+                margin-right: 0.5rem;
+                margin-left: 0;
+            }
+            
+            [dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+                margin-right: 1rem;
+                margin-left: 0;
+            }
+            
+            [dir="rtl"] .ml-1 {
+                margin-left: 0;
+                margin-right: 0.25rem;
+            }
+            
+            [dir="rtl"] .mr-1 {
+                margin-right: 0;
+                margin-left: 0.25rem;
+            }
+            
+            [dir="rtl"] .ml-2 {
+                margin-left: 0;
+                margin-right: 0.5rem;
+            }
+            
+            [dir="rtl"] .mr-2 {
+                margin-right: 0;
+                margin-left: 0.5rem;
+            }
+            
+            [dir="rtl"] .ml-4 {
+                margin-left: 0;
+                margin-right: 1rem;
+            }
+            
+            [dir="rtl"] .mr-4 {
+                margin-right: 0;
+                margin-left: 1rem;
+            }
+            
+            [dir="rtl"] .text-left {
+                text-align: right;
+            }
+            
+            [dir="rtl"] .text-right {
+                text-align: left;
+            }
+            
+            [dir="rtl"] .flex-row {
+                flex-direction: row-reverse;
+            }
+            
+            [dir="rtl"] .border-l-4 {
+                border-left-width: 0;
+                border-right-width: 4px;
+            }
+            
+            [dir="rtl"] .pl-4 {
+                padding-left: 0;
+                padding-right: 1rem;
+            }
+
+            .individual-map-container {
+                height: 350px; width: 100%; border-radius: 12px;
+                border: 1px solid var(--border-color-light);
+                background-color: #DDDDDD;
+                transition: border-color 0.3s, background-color 0.3s;
+            }
+            .dark .individual-map-container {
+                border: 1px solid var(--border-color-dark);
+                background-color: var(--card-bg-dark, #1E293B);
+            }
+
+            .location-popup .leaflet-popup-content-wrapper { background-color: var(--bg-secondary-light); border-radius: 10px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); padding: 8px 12px; }
+            .location-popup .leaflet-popup-tip { background-color: var(--bg-secondary-light); }
+            .dark .location-popup .leaflet-popup-content-wrapper { background-color: var(--card-bg-dark); color: var(--text-primary-dark); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
+            .dark .location-popup .leaflet-popup-tip { background-color: var(--card-bg-dark); }
+            .location-popup-title { font-weight: 600; font-size: 14px; margin-bottom: 5px; color: var(--text-primary-light); border-bottom: 1px solid var(--border-color-light); padding-bottom: 3px; }
+            .dark .location-popup-title { color: var(--text-primary-dark); border-bottom: 1px solid var(--border-color-dark); }
+            .location-popup-status { font-size: 0.8rem; font-weight: 500; margin-bottom: 4px; color: var(--text-secondary-light); }
+            .dark .location-popup-status { color: var(--text-secondary-dark); }
+            .location-popup-time { font-size: 0.75rem; color: var(--text-muted-light); }
+            .dark .location-popup-time { color: var(--text-muted-dark); }
+
+            #error-message { position: fixed; top: 0; left: 0; right: 0; background-color: #ef4444; color: white; padding: 0.75rem 1rem; z-index: 10000; display: none; text-align: center; font-size: 0.875rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+            .neo-card {
+                background: var(--card-bg-light);
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.02);
+                border-radius: 16px; border: none; position: relative; overflow: hidden;
+                transform: translateY(0);
+                transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s;
+                margin-bottom: 15px;
+            }
+            .dark .neo-card {
+                background: var(--card-bg-dark);
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            }
+            .neo-card:hover { box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08), 0 0 60px rgba(255, 122, 0, 0.08); transform: translateY(-8px); }
+            .dark .neo-card:hover { box-shadow: 0 10px 15px rgba(0,0,0,0.2), 0 4px 6px rgba(0,0,0,0.15); transform: translateY(-8px); }
+
+            .gradient-text { background: linear-gradient(90deg, var(--orange-primary) 0%, var(--orange-secondary) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+            .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: var(--bg-secondary-light); border-radius: 4px; }
+            .dark .custom-scrollbar::-webkit-scrollbar-track { background: var(--bg-secondary-dark); }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--orange-primary); border-radius: 4px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--orange-secondary); }
+
+            .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; transition: background-color 0.3s, color 0.3s; }
+            .status-badge.good-status { background-color: #D1FAE5; color: #065F46; }
+            .status-badge.moderate-status { background-color: #FEF3C7; color: #92400E; }
+            .status-badge.unhealthy-sensitive-status { background-color: #FFEDD5; color: #9A3412; }
+            .status-badge.unhealthy-status { background-color: #FEE2E2; color: #991B1B; }
+            .status-badge.very-unhealthy-status { background-color: #F3E8FF; color: #6B21A8; }
+            .status-badge.hazardous-status { background-color: #FEE2E2; color: #7F1D1D; }
+            .status-badge.nodata-status { background-color: #F3F4F6; color: #4B5563; }
+            .dark .status-badge.good-status { background-color: #052e16; color: #6ee7b7; }
+            .dark .status-badge.moderate-status { background-color: #422006; color: #fcd34d; }
+            .dark .status-badge.unhealthy-sensitive-status { background-color: #431407; color: #fb923c; }
+            .dark .status-badge.unhealthy-status { background-color: #450a0a; color: #f87171; }
+            .dark .status-badge.very-unhealthy-status { background-color: #3b0764; color: #c084fc; }
+            .dark .status-badge.hazardous-status { background-color: #450a0a; color: #fda4af; }
+            .dark .status-badge.nodata-status { background-color: #374151; color: #D1D5DB; }
+
+            .glass-effect {
+                backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+                background: var(--header-bg-light);
+                border-bottom: 1px solid var(--header-border-light);
+                transition: background-color 0.3s, border-color 0.3s;
+            }
+            .dark .glass-effect {
+                background: var(--header-bg-dark);
+                border-bottom: 1px solid var(--border-color-dark);
+            }
+
+            .text-gray-800 { color: var(--text-primary-light); }
+            .dark .text-gray-800 { color: var(--text-primary-dark); }
+            h2.text-gray-800, h3.text-gray-800 { color: var(--text-primary-light); }
+            .dark h2.text-gray-800, .dark h3.text-gray-800 { color: var(--text-primary-dark); }
+            .text-gray-600 { color: var(--text-secondary-light); }
+            .dark .text-gray-600 { color: var(--text-secondary-dark); }
+            .text-gray-500 { color: var(--text-muted-light); }
+            .dark .text-gray-500 { color: var(--text-secondary-dark); }
+            .text-gray-400 { color: #9CA3AF; }
+            .dark .text-gray-400 { color: var(--text-muted-dark); }
+            .text-blue-600 { color: var(--blue-primary); }
+            .dark .text-blue-600 { color: var(--blue-secondary); }
+            .border-gray-100 { border-color: var(--border-color-light); }
+            .dark .border-gray-100 { border-color: var(--border-color-dark); }
+
+            .time-range-btn { transition: background-color 0.2s, color 0.2s; }
+            .time-range-btn.bg-gray-100 { background-color: #F3F4F6; color: #4B5563; }
+            .dark .time-range-btn.bg-gray-100 { background-color: var(--button-bg-dark); color: var(--text-secondary-dark); }
+            .time-range-btn.bg-gray-100:hover { background-color: #E5E7EB; }
+            .dark .time-range-btn.bg-gray-100:hover { background-color: var(--button-hover-bg-dark); }
+
+            .dark .bg-white {
+                background-color: var(--button-bg-dark) !important;
+                border-color: var(--border-color-dark) !important;
+            }
+            .dark #current-time { color: var(--text-secondary-dark) !important; }
+            .dark #dark-mode-toggle svg { color: var(--icon-color-dark) !important; }
+
+            footer.bg-white { background-color: var(--bg-secondary-light); border-top: 1px solid var(--border-color-light); }
+            .dark footer.bg-white { background-color: var(--bg-secondary-dark); border-top-color: var(--border-color-dark); }
+
+            .dark .leaflet-bar a,
+            .dark .leaflet-bar a:hover {
+                background-color: var(--leaflet-control-bg-dark) !important;
+                color: var(--leaflet-control-text-dark) !important;
+                border-bottom-color: var(--border-color-dark) !important;
+            }
+            .dark .leaflet-bar a:hover { background-color: var(--button-hover-bg-dark) !important; }
+            .dark .leaflet-bar a.leaflet-disabled {
+                background-color: var(--leaflet-control-bg-dark) !important;
+                color: var(--text-muted-dark) !important;
+            }
+            .dark .leaflet-control-attribution {
+                background: var(--leaflet-attribution-bg-dark) !important;
+                color: var(--leaflet-attribution-text-dark) !important;
+            }
+            .dark .leaflet-control-attribution a { color: var(--blue-secondary) !important; }
+            .dark .leaflet-control-layers {
+                background: var(--leaflet-control-bg-dark) !important;
+                color: var(--leaflet-control-text-dark) !important;
+                border: 1px solid var(--border-color-dark);
+            }
+
+            /* Guardian Colors CSS */
+            .gradient-bg {
+                background: linear-gradient(90deg, var(--orange-primary) 0%, var(--orange-secondary) 100%);
+            }
+
+            .gradient-bg-blue {
+                background: linear-gradient(90deg, var(--blue-primary) 0%, var(--blue-secondary) 100%);
+            }
+
+            /* CSS for inverted map tiles in dark mode */
+            html.dark .dark-filtered-tiles {
+                filter: invert(0.9) hue-rotate(180deg) brightness(0.85) contrast(1.4) saturate(0.8) !important;
+            }
+
+            html.dark .leaflet-container {
+                background: #242424 !important;
+            }
+
+            html.dark .leaflet-marker-icon,
+            html.dark .leaflet-marker-shadow {
+                filter: hue-rotate(0deg) invert(0) !important;
+            }
+
+            html.dark .leaflet-popup-content-wrapper,
+            html.dark .leaflet-popup-tip {
+                filter: hue-rotate(0deg) invert(0) !important;
+            }
+
+            html.dark .leaflet-bar,
+            html.dark .leaflet-control-layers {
+                filter: hue-rotate(0deg) invert(0) !important;
+            }
+
+            html.dark .location-area {
+                filter: brightness(1.2) saturate(1.4) !important;
+            }
+
+            html.dark .leaflet-control-attribution {
+                background: rgba(0, 0, 0, 0.5) !important;
+                color: rgba(255, 255, 255, 0.7) !important;
+                filter: hue-rotate(0deg) invert(0) !important;
+            }
+
+            html.dark .leaflet-control-attribution a {
+                color: rgba(255, 255, 255, 0.9) !important;
+            }
+
+            /* ------ START: New Prediction Styling ------ */
+            .prediction-list-container {
+                /* Using existing neo-card styling for the parent */
+            }
+
+            .prediction-section-title {
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.025em;
+                color: var(--text-secondary-light);
+                padding: 0.75rem 1.25rem;
+                border-bottom: 1px solid var(--border-color-light);
+            }
+            .dark .prediction-section-title {
+                color: var(--text-secondary-dark);
+                border-bottom: 1px solid var(--border-color-dark);
+            }
+             .prediction-section-title svg {
+                width: 1rem;
+                height: 1rem;
+                margin-right: 0.5rem;
+                display: inline-block;
+                vertical-align: middle;
+            }
+            
+            [dir="rtl"] .prediction-section-title svg {
+                margin-right: 0;
+                margin-left: 0.5rem;
+            }
+
+            .prediction-item {
+                padding: 0.75rem 1.25rem;
+                border-bottom: 1px solid var(--border-color-light);
+            }
+            .dark .prediction-item {
+                border-bottom: 1px solid var(--border-color-dark);
+            }
+            .prediction-item:last-child {
+                border-bottom: none;
+            }
+
+            .prediction-item-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 0.25rem;
+            }
+            .prediction-item-dayinfo {
+                display: flex;
+                align-items: center;
+            }
+            .prediction-item-dot {
+                width: 0.5rem;
+                height: 0.5rem;
+                border-radius: 50%;
+                margin-right: 0.5rem;
+                flex-shrink: 0;
+            }
+            [dir="rtl"] .prediction-item-dot {
+                margin-right: 0;
+                margin-left: 0.5rem;
+            }
+            .prediction-item-date {
+                font-size: 0.875rem;
+                font-weight: 600;
+                color: var(--text-primary-light);
+            }
+            .dark .prediction-item-date {
+                color: var(--text-primary-dark);
+            }
+            .prediction-item-pm25 {
+                font-size: 0.875rem;
+                font-weight: 700;
+            }
+            .prediction-item-pm25 .unit {
+                font-size: 0.75rem;
+                opacity: 0.7;
+            }
+
+            .prediction-item-details {
+                 margin-left: calc(0.5rem + 0.5rem);
+            }
+            [dir="rtl"] .prediction-item-details {
+                margin-left: 0;
+                margin-right: calc(0.5rem + 0.5rem);
+            }
+            .prediction-item-confidence-label {
+                font-size: 0.75rem;
+                color: var(--text-secondary-light);
+                margin-bottom: 0.125rem;
+            }
+            .dark .prediction-item-confidence-label {
+                color: var(--text-secondary-dark);
+            }
+
+            .prediction-item-confidence-bar-container {
+                display: flex;
+                align-items: center;
+                margin-bottom: 0.25rem;
+            }
+            .prediction-item-confidence-bar-bg {
+                width: 100%;
+                background-color: #E5E7EB;
+                border-radius: 9999px;
+                height: 0.375rem;
+                margin-right: 0.5rem;
+                overflow: hidden;
+            }
+            [dir="rtl"] .prediction-item-confidence-bar-bg {
+                margin-right: 0;
+                margin-left: 0.5rem;
+            }
+            .dark .prediction-item-confidence-bar-bg {
+                background-color: #374151;
+            }
+            .prediction-item-confidence-bar {
+                height: 100%;
+                border-radius: 9999px;
+            }
+            .confidence-bar-makhmor {
+                background-color: var(--orange-primary);
+            }
+            .confidence-bar-naznaz {
+                background-color: var(--blue-primary);
+            }
+            .prediction-item-confidence-value {
+                font-size: 0.75rem;
+                color: var(--text-secondary-light);
+                font-weight: 500;
+            }
+            .dark .prediction-item-confidence-value {
+                color: var(--text-secondary-dark);
+            }
+            .prediction-item-description {
+                font-size: 0.75rem;
+                color: var(--text-muted-light);
+            }
+            .dark .prediction-item-description {
+                color: var(--text-muted-dark);
+            }
+             /* ------ END: New Prediction Styling ------ */
+
+            /* Forecast container styling */
+            .forecast-container {
+                /* box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); */
+                /* transition: all 0.3s ease; */
+            }
+
+            /* Individual forecast day item */
+            .forecast-day {
+                border-bottom: none !important;
+            }
+
+            /* Last forecast day should not have a border */
+            .forecast-day:last-child {
+                border-bottom: none;
+            }
+
+            /* Visual quality indicators */
+            .forecast-quality-indicator {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                margin-right: 8px;
+                display: inline-block;
+            }
+
+            /* Quality indicator colors */
+            .quality-good { background-color: #10B981; }
+            .quality-moderate { background-color: #F59E0B; }
+            .quality-unhealthy-sensitive { background-color: #F97316; }
+            .quality-unhealthy { background-color: #EF4444; }
+            .quality-very-unhealthy { background-color: #8B5CF6; }
+            .quality-hazardous { background-color: #B91C1C; }
+
+            /* Dark mode adjustments */
+            .dark .quality-good { background-color: #34D399; }
+            .dark .quality-moderate { background-color: #FBBF24; }
+            .dark .quality-unhealthy-sensitive { background-color: #FB923C; }
+            .dark .quality-unhealthy { background-color: #F87171; }
+            .dark .quality-very-unhealthy { background-color: #A78BFA; }
+            .dark .quality-hazardous { background-color: #EF4444; }
+
+            /* Animate prediction on load */
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .prediction-item {
+                animation: fadeInUp 0.3s ease forwards;
+                animation-delay: calc(var(--index) * 0.05s);
+                opacity: 0;
+            }
+        </style>
+
+        <script>
+            tailwind.config = {
+                darkMode: 'class',
+                theme: { extend: { colors: { orange: { primary: '#FF7A00', secondary: '#FFB766' }, blue: { primary: '#3B82F6', secondary: '#60A5FA' }}}}
+            }
+        </script>
+    </head>
+<body class="min-h-screen custom-scrollbar">
+    <div id="error-message"></div>
+
+    <header class="sticky top-0 z-40 glass-effect shadow-sm">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+             <div class="flex items-center space-x-3">
+                 <div class="h-12 w-12 flex-shrink-0 overflow-hidden bg-white p-1 rounded-md shadow-sm">
+                     <img src="images/Logo_of_Tishk_International_University.png" alt="Tishk International University Logo" class="h-full w-full object-contain">
+                 </div>
+                 <div>
+                     <h1 class="text-xl font-bold gradient-text mb-0" data-i18n="appName">Airoscan</h1>
+                     <p class="text-xs text-gray-500 -mt-1" data-i18n="university">Tishk International University</p>
+                 </div>
+             </div>
+             <div class="flex items-center space-x-3">
+                 <div class="flex items-center space-x-2 mr-3">
+                    <button onclick="setLanguage('en')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="en">EN</button>
+                    <button onclick="setLanguage('ku')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="ku">کو</button>
+                    <button onclick="setLanguage('ar')" class="lang-btn px-2 py-1 text-xs font-medium rounded transition-colors" data-lang="ar">ع</button>
+                 </div>
+                 <div class="bg-white px-3 py-1.5 rounded-lg text-xs text-gray-600 hidden md:block shadow-sm border border-gray-100">
+                     <span id="current-time">Loading...</span>
+                 </div>
+                 <button id="dark-mode-toggle" class="p-2 rounded-lg bg-white hover:bg-gray-100 transition-colors duration-200 shadow-sm border border-gray-100" title="Toggle Dark Mode">
+                    <svg id="theme-toggle-dark-icon" class="hidden h-5 w-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden h-5 w-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 5.05A1 1 0 003.636 3.636l-.707.707a1 1 0 101.414 1.414l.707-.707zM3 11a1 1 0 100-2H2a1 1 0 100 2h1zM13 17a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM4.95 14.95A1 1 0 006.364 16.364l.707-.707a1 1 0 00-1.414-1.414l-.707.707z"></path></svg>
+                 </button>
+             </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-1" data-i18n="airQualityMonitor">Air Quality Monitor</h1>
+            <p class="text-gray-600" data-i18n="subtitle">Real-time PM2.5 concentration data from monitoring stations in Erbil, Kurdistan Region</p>
+        </div>
+
+        
+
+        <section class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="neo-card p-6 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-gray-800 dark:to-gray-700 border-l-4 border-blue-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1" data-i18n="viewHistoricalData">View Historical Data</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-300" data-i18n="analyzeHistoricalTrends">Analyze air quality trends and patterns from any date since monitoring began</p>
+                        </div>
+                        <a href="historical-data.html" class="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-all transform hover:scale-105 shadow-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            <span data-i18n="historicalData">Historical Data</span>
+                        </a>
+                    </div>
+                </div>
+        
+                <div class="neo-card p-6 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-gray-800 dark:to-gray-700 border-l-4 border-orange-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1" data-i18n="learnAboutAirQuality">Learn About Air Quality</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-300" data-i18n="understandPM25">Understand how PM2.5 affects your health and how to protect yourself</p>
+                        </div>
+                        <a href="pm25-effects.html" class="flex items-center px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all transform hover:scale-105 shadow-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <span data-i18n="healthGuide">Health Guide</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-3" data-i18n="makhmorSensorTitle">Makhmor Road Sensor</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="currentPM25">Current PM2.5</h3><div class="h-8 w-8 rounded-full gradient-bg flex items-center justify-center text-white shadow-md"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div></div>
+                    <div class="flex items-baseline mb-1"><span id="makhmor-current-pm25" class="text-4xl font-bold gradient-text mr-1 number-en">--</span><span class="text-sm text-gray-500" data-i18n="microgramUnit">μg/m³</span></div>
+                    <span id="makhmor-air-quality-status" class="status-badge nodata-status" data-i18n="loading">Loading...</span>
+                    <p id="makhmor-status-time" class="text-xs text-gray-400 mt-2" data-i18n="updating">Updating...</p>
+                </div>
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="lastWeekAvg">Last Week Avg</h3><div class="h-8 w-8 rounded-full bg-orange-primary/20 flex items-center justify-center text-orange-primary"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div></div>
+                    <div class="flex items-baseline"><span id="makhmor-last-week-avg-pm25" class="text-3xl font-bold text-gray-800 mr-1 number-en">--</span><span class="text-sm text-gray-500" data-i18n="microgramUnit">μg/m³</span></div>
+                    <p class="text-xs text-gray-400 mt-2" data-i18n="avgLast7d">Average over the last 7 days</p>
+                </div>
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="lastUpdated">Last Updated</h3><div class="h-8 w-8 rounded-full bg-orange-primary/20 flex items-center justify-center text-orange-primary"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div></div>
+                    <p id="makhmor-last-updated" class="text-lg font-semibold text-gray-800">--</p>
+                    <p id="makhmor-time-ago" class="text-sm text-gray-500 mt-1" data-i18n="loading">Loading...</p>
+                </div>
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="sensorStatus">Sensor Status</h3><div class="h-8 w-8 rounded-full bg-orange-secondary/20 flex items-center justify-center text-orange-secondary"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg></div></div>
+                    <span id="makhmor-sensor-status" class="text-xl font-bold text-gray-500" data-i18n="unknown">Unknown</span>
+                    <p class="text-xs text-gray-400 mt-2" data-i18n="sensorConnection">Sensor connection status</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-3" data-i18n="naznazSensorTitle">Naznaz Area Sensor</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="currentPM25">Current PM2.5</h3><div class="h-8 w-8 rounded-full gradient-bg-blue flex items-center justify-center text-white shadow-md"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div></div>
+                    <div class="flex items-baseline mb-1"><span id="naznaz-current-pm25" class="text-4xl font-bold gradient-text mr-1 number-en">--</span><span class="text-sm text-gray-500" data-i18n="microgramUnit">μg/m³</span></div>
+                    <span id="naznaz-air-quality-status" class="status-badge nodata-status" data-i18n="loading">Loading...</span>
+                    <p id="naznaz-status-time" class="text-xs text-gray-400 mt-2" data-i18n="updating">Updating...</p>
+                </div>
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="lastWeekAvg">Last Week Avg</h3><div class="h-8 w-8 rounded-full bg-blue-primary/20 flex items-center justify-center text-blue-primary"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div></div>
+                    <div class="flex items-baseline"><span id="naznaz-last-week-avg-pm25" class="text-3xl font-bold text-gray-800 mr-1 number-en">--</span><span class="text-sm text-gray-500" data-i18n="microgramUnit">μg/m³</span></div>
+                    <p class="text-xs text-gray-400 mt-2" data-i18n="avgLast7d">Average over the last 7 days</p>
+                </div>
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="lastUpdated">Last Updated</h3><div class="h-8 w-8 rounded-full bg-blue-primary/20 flex items-center justify-center text-blue-primary"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div></div>
+                    <p id="naznaz-last-updated" class="text-lg font-semibold text-gray-800">--</p>
+                    <p id="naznaz-time-ago" class="text-sm text-gray-500 mt-1" data-i18n="loading">Loading...</p>
+                </div>
+                <div class="neo-card hover-lift p-5">
+                    <div class="flex items-center justify-between mb-3"><h3 class="text-xs uppercase tracking-wider text-gray-500" data-i18n="sensorStatus">Sensor Status</h3><div class="h-8 w-8 rounded-full bg-blue-primary/20 flex items-center justify-center text-blue-primary"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg></div></div>
+                    <span id="naznaz-sensor-status" class="text-xl font-bold text-gray-500" data-i18n="unknown">Unknown</span>
+                    <p class="text-xs text-gray-400 mt-2" data-i18n="sensorConnection">Sensor connection status</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-6">
+             <div class="neo-card overflow-hidden">
+                <div class="flex flex-col md:flex-row md:items-center justify-between p-4 border-b border-gray-100">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-3 md:mb-0"><span data-i18n="pm25Trends">PM2.5 Concentration Trends</span></h2>
+                    <div class="flex space-x-2">
+                        <button class="time-range-btn bg-orange-primary text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm" data-range="24h" id="btn-24h" data-i18n="24h">24h</button>
+                        <button class="time-range-btn bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-200" data-range="7d" id="btn-7d" data-i18n="7d">7d</button>
+                        <button class="time-range-btn bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-200" data-range="30d" id="btn-30d" data-i18n="30d">30d</button>
+                    </div>
+                </div>
+                <div class="p-4"><div class="h-80 relative"><canvas id="air-quality-chart"></canvas></div></div>
+            </div>
+        </section>
+
+        <section class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="neo-card overflow-hidden">
+                    <div class="p-4 border-b border-gray-100"> <h2 class="text-lg font-semibold text-gray-800"><span data-i18n="makhmor">Makhmor Road</span> <span class="gradient-text" data-i18n="map">Map</span></h2> </div>
+                    <div class="p-4"> <div id="makhmor-map" class="individual-map-container"></div> </div>
+                </div>
+                <div class="neo-card overflow-hidden">
+                     <div class="p-4 border-b border-gray-100"> <h2 class="text-lg font-semibold text-gray-800"><span data-i18n="naznaz">Naznaz Area</span> <span class="gradient-text" data-i18n="map">Map</span></h2> </div>
+                     <div class="p-4"> <div id="naznaz-map" class="individual-map-container"></div> </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="neo-card p-5">
+                     <div class="flex justify-between items-start mb-3">
+                         <div>
+                             <h3 class="text-lg font-semibold text-gray-800" id="location1-name" data-i18n="makhmor">Makhmor Road</h3>
+                             <div class="flex items-baseline mt-1"><span class="text-2xl font-bold text-gray-800 number-en" id="location1-pm25">--</span><span class="ml-1 text-sm text-gray-500"></span></div>
+                             <div class="flex items-baseline mt-1"><span class="text-2xl font-bold text-gray-800 number-en" id="location1-humidity">--</span><span class="ml-1 text-sm text-gray-500"></span></div>
+                         </div>
+                         <p class="text-sm text-gray-500" id="location1-timestamp">--:--</p>
+                    </div>
+                     <div class="mt-3 pt-3 border-t border-gray-100">
+                         <h4 class="text-xs uppercase text-gray-500 mb-2" data-i18n="averages">Averages</h4>
+                         <div class="grid grid-cols-3 gap-2 text-center">
+                             <div><span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 number-en" id="location1-24h-avg">--</span><span class="text-xs text-gray-400" data-i18n="24h">24h</span></div>
+                             <div><span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 number-en" id="location1-7d-avg">--</span><span class="text-xs text-gray-400" data-i18n="7d">7d</span></div>
+                             <div><span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 number-en" id="location1-30d-avg">--</span><span class="text-xs text-gray-400" data-i18n="30d">30d</span></div>
+                         </div>
+                     </div>
+                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 prediction-list-container">
+                        <div id="location1-prediction">
+                            </div>
+                    </div>
+                 </div>
+                 <div class="neo-card p-5">
+                     <div class="flex justify-between items-start mb-3">
+                         <div>
+                             <h3 class="text-lg font-semibold text-gray-800" id="naznaz-name" data-i18n="naznaz">Naznaz Area</h3>
+                             <div class="flex items-baseline mt-1"><span class="text-2xl font-bold text-gray-800 number-en" id="naznaz-pm25">--</span><span class="ml-1 text-sm text-gray-500"></span></div>
+                             <div class="flex items-baseline mt-1"><span class="text-2xl font-bold text-gray-800 number-en" id="naznaz-humidity">--</span><span class="ml-1 text-sm text-gray-500"></span></div>
+                         </div>
+                         <p class="text-sm text-gray-500" id="naznaz-timestamp">--:--</p>
+                     </div>
+                     <div class="mt-3 pt-3 border-t border-gray-100">
+                         <h4 class="text-xs uppercase text-gray-500 mb-2" data-i18n="averages">Averages</h4>
+                         <div class="grid grid-cols-3 gap-2 text-center">
+                             <div><span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 number-en" id="naznaz-24h-avg">--</span><span class="text-xs text-gray-400" data-i18n="24h">24h</span></div>
+                             <div><span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 number-en" id="naznaz-7d-avg">--</span><span class="text-xs text-gray-400" data-i18n="7d">7d</span></div>
+                             <div><span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 number-en" id="naznaz-30d-avg">--</span><span class="text-xs text-gray-400" data-i18n="30d">30d</span></div>
+                         </div>
+                     </div>
+                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 prediction-list-container">
+                        <div id="naznaz-prediction">
+                            </div>
+                    </div>
+                 </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-white border-t border-gray-100 mt-8 shadow-sm">
+        <div class="container mx-auto px-4 py-5 text-center">
+            <p class="text-sm text-gray-500" data-i18n="copyright">&copy; 2025 Air Quality Monitoring System - Tishk International University</p>
+        </div>
+    </footer>
+
+    <script src="translations.js"></script>
+    <script src="db-config.js"></script>
+    <script src="sensor-status.js"></script>
+    <script src="app.js"></script>
+    <script>
+        var maps = { makhmor: null, naznaz: null };
+        var mapMarkers = { makhmor: null, naznaz: null };
+        const mapLocations = {
+            makhmor: { name: "Makhmor Road", center: [36.112146, 43.953925], color: "#FF7A00", id: "makhmor-road", mapDivId: "makhmor-map", polygon: [[36.131336, 43.955878],[36.127069, 43.935050],[36.112558, 43.928211],[36.092654, 43.936422],[36.087244, 43.967664],[36.095914, 43.982169],[36.118589, 43.990409],[36.133590, 43.986449],[36.136186, 43.971241]] },
+            naznaz: { name: "Naznaz Area", center: [36.213724, 43.988080], color: "#3B82F6", id: "naznaz-area", mapDivId: "naznaz-map", polygon: [[36.195884, 43.993956],[36.200586, 43.975506],[36.202055, 43.961425],[36.216648, 43.970165],[36.222622, 43.994927],[36.218776, 44.011252],[36.203788, 44.013599]] }
+        };
+        var currentTileLayers = { makhmor: null, naznaz: null };
+    
+        // window.makhmorRoadData and window.naznazAreaData are populated by app.js
+    
+        function getTileLayer(isDarkMode) {
+            // console.log("Getting map tiles for theme:", isDarkMode ? "dark" : "light");
+            if (isDarkMode) {
+                return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    className: 'dark-filtered-tiles'
+                });
+            } else {
+                return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                });
+            }
+        }
+    
+        function updateMapPolygons() {
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            Object.entries(mapLocations).forEach(([key, location]) => {
+                if (!maps[key]) return;
+                maps[key].eachLayer(layer => {
+                    if (layer instanceof L.Polygon) maps[key].removeLayer(layer);
+                });
+                const polygonOptions = {
+                    color: location.color,
+                    weight: isDarkMode ? 2.5 : 1.5,
+                    fillColor: location.color,
+                    fillOpacity: isDarkMode ? 0.4 : 0.2,
+                    className: 'location-area'
+                };
+                L.polygon(location.polygon, polygonOptions).addTo(maps[key]);
+            });
+        }
+    
+        function invalidateMaps() {
+            setTimeout(function() {
+                Object.keys(maps).forEach(key => {
+                    if (maps[key]) maps[key].invalidateSize();
+                });
+            }, 100);
+        }
+    
+        function initMaps() {
+            if (typeof L === 'undefined') { console.error("Leaflet (L) not defined. Maps cannot be initialized."); return; }
+            const isDarkMode = document.documentElement.classList.contains('dark');
+    
+            Object.entries(mapLocations).forEach(([key, location]) => {
+                try {
+                    const mapContainerElement = document.getElementById(location.mapDivId);
+                    if (!mapContainerElement) { console.error(`Map container '${location.mapDivId}' not found.`); return; }
+                    if (maps[key]) { maps[key].remove(); maps[key] = null; }
+    
+                    maps[key] = L.map(location.mapDivId).setView(location.center, 12);
+                    currentTileLayers[key] = getTileLayer(isDarkMode);
+                    currentTileLayers[key].addTo(maps[key]);
+    
+                    const dataArray = location.id === 'makhmor-road' ? (window.makhmorRoadData || []) : (window.naznazAreaData || []);
+                    const initialReading = (dataArray.length > 0) ? dataArray[0] : null;
+                    
+                    mapMarkers[key] = createOrUpdateMarker(location, initialReading);
+                    if(mapMarkers[key]) {
+                        mapMarkers[key].addTo(maps[key]);
+                        mapMarkers[key].bindPopup(() => createPopupContentForMap(location), { className: 'location-popup', offset: [0, -30] });
+                    }
+                } catch (error) { console.error(`Error initializing ${location.name} map:`, error); }
+            });
+            updateMapPolygons();
+        }
+    
+        window.updateMapTheme = function() {
+            if (typeof L === 'undefined' || !maps.makhmor || !maps.naznaz) return;
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            Object.keys(maps).forEach(key => {
+                if (maps[key]) {
+                    if (currentTileLayers[key]) maps[key].removeLayer(currentTileLayers[key]);
+                    currentTileLayers[key] = getTileLayer(isDarkMode);
+                    currentTileLayers[key].addTo(maps[key]);
+                }
+            });
+            updateMapPolygons();
+            console.log("Map themes updated.");
+        };
+    
+        function createOrUpdateMarker(location, reading) {
+            // getAirQualityStatus is now defined in app.js and globally available via window if needed,
+            // but app.js uses it internally, so this script doesn't need to redefine it.
+            const pm25Value = (reading && reading.pm25 !== null) ? parseFloat(reading.pm25) : null;
+            
+            // Ensure getAirQualityStatus is available from app.js
+            const status = (typeof getAirQualityStatus === 'function') ? 
+                            getAirQualityStatus(pm25Value) : 
+                            { status: 'Loading...', color: (document.documentElement.classList.contains('dark') ? '#374151' : '#A0AEC0') };
+    
+            const markerColor = status.color || (document.documentElement.classList.contains('dark') ? '#374151' : '#A0AEC0');
+            const iconHtml = `<div style="background-color:${markerColor};border:1px solid rgba(0,0,0,0.2);" class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg"><span class="text-white font-bold text-xs">${pm25Value !== null ? pm25Value.toFixed(0) : '--'}</span></div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${markerColor};margin:auto;position:relative;top:-1px;"></div>`;
+            const customIcon = L.divIcon({ html: iconHtml, className: '', iconSize: [32, 40], iconAnchor: [16, 40] });
+            const mapKey = location.id === 'makhmor-road' ? 'makhmor' : 'naznaz';
+    
+            if (mapMarkers[mapKey]) {
+                mapMarkers[mapKey].setIcon(customIcon);
+                return mapMarkers[mapKey];
+            } else {
+                if (typeof L !== 'undefined' && L.marker) return L.marker(location.center, { icon: customIcon });
+                return null;
+            }
+        }
+    
+        function createPopupContentForMap(location) {
+            // Ensure t (translations) and getAirQualityStatus, getTimeAgo (from app.js) are available
+            const t = window.t || (key => key); // Fallback for translation
+            const getAQStatusFunc = window.getAirQualityStatus || getAirQualityStatus; // Use global or app.js one
+            const getTimeAgoFunc = window.getTimeAgo || getTimeAgo; // Use global or app.js one
+    
+            const dataArray = location.id === 'makhmor-road' ? (window.makhmorRoadData || []) : (window.naznazAreaData || []);
+            const reading = dataArray && dataArray.length > 0 ? dataArray[0] : null;
+            const popup = L.DomUtil.create('div', 'location-popup-content');
+            L.DomUtil.create('div', 'location-popup-title', popup).textContent = t(location.id === 'makhmor-road' ? 'makhmor' : 'naznaz');
+    
+            if (!reading) {
+                L.DomUtil.create('div', 'text-sm mt-1', popup).textContent = t('noData');
+                return popup;
+            }
+    
+            const pm25Value = reading.pm25 !== null ? parseFloat(reading.pm25) : null;
+            const status = getAQStatusFunc(pm25Value);
+            const valueEl = L.DomUtil.create('div', 'location-popup-value', popup);
+            valueEl.style.color = status.color || '#F97316'; // Fallback color
+            valueEl.textContent = pm25Value !== null ? `${pm25Value.toFixed(1)} ${t('microgramUnit')}` : `-- ${t('microgramUnit')}`;
+            L.DomUtil.create('div', 'location-popup-status', popup).textContent = `${t('status')}: ${status.status}`;
+            const tsEl = L.DomUtil.create('div', 'location-popup-time', popup);
+            tsEl.textContent = reading.timestamp instanceof Date && !isNaN(reading.timestamp) ? `${t('lastUpdated')}: ${getTimeAgoFunc(reading.timestamp)}` : `${t('lastUpdated')}: ${t('invalidDate')}`;
+            return popup;
+        }
+    
+        window.updateMapData = function() { // Called by app.js's refreshData
+            if (typeof L === 'undefined' || typeof getAirQualityStatus !== 'function') return;
+            Object.entries(mapLocations).forEach(([key, location]) => {
+                if (!maps[key]) return;
+                const dataArray = location.id === 'makhmor-road' ? (window.makhmorRoadData || []) : (window.naznazAreaData || []);
+                const latestReading = dataArray && dataArray.length > 0 ? dataArray[0] : null;
+    
+                if (mapMarkers[key]) {
+                    createOrUpdateMarker(location, latestReading);
+                    if (mapMarkers[key].isPopupOpen()) mapMarkers[key].setPopupContent(createPopupContentForMap(location));
+                } else {
+                    mapMarkers[key] = createOrUpdateMarker(location, latestReading);
+                    if(mapMarkers[key]) {
+                        mapMarkers[key].addTo(maps[key]);
+                        mapMarkers[key].bindPopup(() => createPopupContentForMap(location), { className: 'location-popup', offset: [0, -30] });
+                    }
+                }
+            });
+        };
+    
+        // Prediction display logic and its helpers (getQualityClass, pm25ValueColor)
+        // have been MOVED to app.js.
+        // The `updatePredictionsDisplay` function in app.js will now handle populating the
+        // <div id="location1-prediction"> and <div id="naznaz-prediction"> elements.
+    
+        function applyInitialTheme() {
+            const storedTheme = localStorage.getItem('darkMode');
+            let isDarkMode = false;
+            if (storedTheme === 'enabled') isDarkMode = true;
+            else if (storedTheme === 'disabled') isDarkMode = false;
+            else isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.classList.toggle('dark', isDarkMode);
+            updateThemeIcons(isDarkMode); // Ensure icons are set based on theme
+            return isDarkMode;
+        }
+    
+        function updateThemeIcons(isDarkMode) {
+            const darkIcon = document.getElementById('theme-toggle-dark-icon');
+            const lightIcon = document.getElementById('theme-toggle-light-icon');
+            if (!darkIcon || !lightIcon) return;
+            darkIcon.classList.toggle('hidden', !isDarkMode);
+            lightIcon.classList.toggle('hidden', isDarkMode);
+        }
+    
+        function toggleDarkModeInIndex() { // Renamed to avoid conflict if app.js also had toggleDarkMode
+            const isDarkMode = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+            updateThemeIcons(isDarkMode);
+            if (typeof window.updateMapTheme === 'function') window.updateMapTheme();
+            invalidateMaps(); // Force map redraw after theme change
+            
+            // If app.js's refreshData handles chart theme updates, ensure it's called
+            // Or, if app.js's toggleDarkMode is the main one, this function might be redundant
+            // For now, assuming this directly calls what's needed for index.html specific theme changes
+            // And app.js's toggleDarkMode (if any) or refreshData handles its own theme updates.
+            // The `app.js` provided has its own `toggleDarkMode` which calls `refreshData`.
+            // To avoid double calls, it might be better to have one source of truth for theme toggling.
+            // For now, this keeps map theme updates local to index.html.
+            // If app.js's `toggleDarkMode` is the primary one, it should also call `window.updateMapTheme()` and `invalidateMaps()`.
+        }
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            applyInitialTheme();
+    
+            setTimeout(function() { // Delay map initialization slightly
+                if (typeof L !== 'undefined') {
+                    initMaps();
+                    // Further ensure map themes are correct after init
+                    const isDarkMode = document.documentElement.classList.contains('dark');
+                    Object.keys(maps).forEach(key => {
+                        if (maps[key] && currentTileLayers[key]) {
+                            maps[key].removeLayer(currentTileLayers[key]);
+                            currentTileLayers[key] = getTileLayer(isDarkMode);
+                            currentTileLayers[key].addTo(maps[key]);
+                        }
+                    });
+                    updateMapPolygons();
+                    invalidateMaps();
+                    console.log("Index.html: Maps initialized with theme:", isDarkMode ? "dark" : "light");
+                } else {
+                    console.error("Index.html: Leaflet not loaded. Maps failed.");
+                    ['makhmor-map', 'naznaz-map'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.innerHTML = '<p class="text-center text-red-500 p-4">Error loading map library.</p>';
+                    });
+                }
+            }, 250);
+    
+            const darkModeButton = document.getElementById('dark-mode-toggle');
+            if (darkModeButton) {
+                // Assuming app.js's toggleDarkMode is the primary one and will refresh charts.
+                // If index.html's toggle is still desired for some reason, rename it.
+                // For now, let app.js handle the primary toggle action.
+                // This event listener in index.html could be removed if app.js's darkModeToggle setup is sufficient.
+                // However, app.js's darkModeToggle is NOT directly referenced here.
+                // The `app.js` should have its own event listener setup for its `toggleDarkMode` if that's the main one.
+                // The provided app.js from the user does this in its `setupEventListeners`.
+                // So, this specific event listener can be removed from index.html to avoid conflicts,
+                // as long as app.js's `setupEventListeners` correctly targets the button.
+                // For safety and to ensure maps themes update, we can keep it, but ensure it calls app.js's function if that's intended to be global.
+                // Or, let app.js handle all of it.
+                // **Decision: Let app.js handle the dark mode toggle event listener entirely.**
+                // **Therefore, this event listener add can be removed.**
+                // darkModeButton.addEventListener('click', toggleDarkModeInIndex); // Remove if app.js handles it
+            }
+        });
+    
+        function updateCurrentTime() {
+            const timeElement = document.getElementById('current-time');
+            const t = window.t || (key => key);
+            if (timeElement) {
+                const now = new Date();
+                // Standard toLocaleString might be better for i18n, but requires translations for weekday/month
+                // Using en-US as a base if specific translated format isn't built in translations.js
+                try {
+                     const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+                     timeElement.textContent = now.toLocaleString((typeof currentLanguage !== 'undefined' ? currentLanguage : 'en-US'), options);
+                } catch (e) { // Fallback for older browsers or unsupported locales in options
+                     timeElement.textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " " + now.toLocaleDateString();
+                }
+            }
+            const yearElement = document.getElementById('current-year'); // In footer
+            if (yearElement) yearElement.textContent = new Date().getFullYear();
+        }
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 60000);
+    
+        // Ensure getAirQualityStatus from app.js is available for map popups if app.js loads later
+        // This is a fallback, ideally app.js ensures its functions are available when needed.
+        if (typeof getAirQualityStatus === 'undefined') {
+            console.warn('getAirQualityStatus from app.js not defined when index.html script ran, using placeholder for maps.');
+            window.getAirQualityStatus = function(pm25) {
+                const t_fallback = key => key.charAt(0).toUpperCase() + key.slice(1);
+                if (pm25 === undefined || pm25 === null || isNaN(pm25)) return { status: t_fallback('noData'), className: 'nodata-status', color: '#6B7280' };
+                if (pm25 <= 9) return { status: t_fallback('good'), className: 'good-status', color: '#10B981' };
+                // ... (add other levels for completeness if needed here for map fallback) ...
+                return { status: t_fallback('moderate'), className: 'moderate-status', color: '#F59E0B' };
+            };
+        }
+         if (typeof getTimeAgo === 'undefined') {
+            console.warn('getTimeAgo from app.js not defined, using placeholder for maps.');
+            window.getTimeAgo = function(date) { return "recently"; };
+         }
+    
+    </script>
+</body>
+</html>
